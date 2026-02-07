@@ -6,6 +6,9 @@ Three.js を使用した観賞用デジタルアクアリウム。ブラウザ�
 ![Three.js](https://img.shields.io/badge/Three.js-r160-green)
 ![Vite](https://img.shields.io/badge/Vite-5.4-purple)
 
+## Demo
+https://nice-rich-2030.github.io/aquarium/
+
 ## Features
 
 - **プロシージャル生成** - 魚・岩・水草を外部モデルなしでコード生成
