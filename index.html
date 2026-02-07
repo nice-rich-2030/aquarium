@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Digital Aquarium</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #001220;
+      }
+      #app {
+        width: 100%;
+        height: 100%;
+      }
+      canvas {
+        display: block;
+      }
+      #loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #001220;
+        color: #4a9eff;
+        font-family: sans-serif;
+        font-size: 1.5rem;
+        z-index: 1000;
+      }
+      #loading.hidden {
+        display: none;
+      }
+      #error {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(255, 50, 50, 0.9);
+        color: white;
+        padding: 2rem;
+        border-radius: 8px;
+        font-family: sans-serif;
+        text-align: center;
+        display: none;
+        z-index: 1001;
+      }
+      #error.visible {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loading">Loading...</div>
+    <div id="error"></div>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
