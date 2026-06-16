@@ -1,4 +1,4 @@
-import { AquariumScene, AquariumRenderer, AquariumCamera, AnimationLoop } from './core';
+import { AquariumScene, AquariumRenderer, AquariumCamera, AnimationLoop, PostProcessing } from './core';
 import { Tank, Lighting, Particles } from './environment';
 import { CreatureManager } from './creatures';
 import { DecorationManager } from './decorations';
@@ -19,6 +19,7 @@ class DigitalAquarium {
   private renderer: AquariumRenderer;
   private camera: AquariumCamera;
   private loop: AnimationLoop;
+  private postProcessing: PostProcessing;
 
   private tank: Tank;
   private lighting: Lighting;
@@ -31,6 +32,9 @@ class DigitalAquarium {
     // コアシステム初期化
     this.scene = new AquariumScene();
     this.renderer = new AquariumRenderer(container);
+
+    // 環境マップ(IBL)をセットアップ（ガラス・魚体の反射に使用）
+    this.scene.setupEnvironment(this.renderer.getRenderer());
     this.camera = new AquariumCamera(
       this.renderer.getDomElement(),
       this.renderer.getAspect(),
@@ -71,6 +75,13 @@ class DigitalAquarium {
     // デフォルトの装飾を配置
     this.decorationManager.placeDefaultDecorations();
 
+    // ポストプロセス（ブルーム）を構築
+    this.postProcessing = new PostProcessing(
+      this.renderer.getRenderer(),
+      this.scene.getScene(),
+      this.camera.getCamera()
+    );
+
     // 設定パネルを作成
     this.settingsPanel = new SettingsPanel({
       camera: this.camera,
@@ -96,31 +107,31 @@ class DigitalAquarium {
     // ネオンテトラの群れ
     this.creatureManager.spawn({
       definitionId: 'neontetra',
-      count: 15,
+      count: 30,
     });
 
     // カクレクマノミ
     this.creatureManager.spawn({
       definitionId: 'clownfish',
-      count: 3,
+      count: 6,
     });
 
     // エンゼルフィッシュ
     this.creatureManager.spawn({
       definitionId: 'angelfish',
-      count: 2,
+      count: 4,
     });
 
     // グッピー
     this.creatureManager.spawn({
       definitionId: 'guppy',
-      count: 8,
+      count: 16,
     });
 
     // 金魚
     this.creatureManager.spawn({
       definitionId: 'goldfish',
-      count: 2,
+      count: 4,
     });
   }
 
@@ -146,12 +157,9 @@ class DigitalAquarium {
       this.decorationManager.update(delta, elapsed);
     });
 
-    // レンダリングコールバック
+    // レンダリングコールバック（ポストプロセス経由）
     this.loop.setRenderCallback(() => {
-      this.renderer.render(
-        this.scene.getScene(),
-        this.camera.getCamera()
-      );
+      this.postProcessing.render();
     });
   }
 
@@ -161,6 +169,8 @@ class DigitalAquarium {
   private setupResizeHandler(): void {
     window.addEventListener('resize', () => {
       this.camera.updateAspect(this.renderer.getAspect());
+      const size = this.renderer.getSize();
+      this.postProcessing.setSize(size.width, size.height);
     });
   }
 
@@ -193,6 +203,7 @@ class DigitalAquarium {
    */
   public dispose(): void {
     this.loop.dispose();
+    this.postProcessing.dispose();
     this.settingsPanel.dispose();
     this.creatureManager.dispose();
     this.decorationManager.dispose();

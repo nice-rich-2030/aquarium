@@ -163,6 +163,13 @@ export class CreatureManager {
     mesh.position.copy(position);
     mesh.quaternion.copy(rotation);
 
+    // 魚は底面に影を落とす（受影はコスト配慮で無効）
+    mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = true;
+      }
+    });
+
     const instance: CreatureInstance = {
       id: `creature_${this.nextInstanceId++}`,
       definitionId: definition.id,

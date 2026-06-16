@@ -40,10 +40,10 @@ export class AquariumRenderer {
     // 出力設定
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 1.1;
 
-    // 影設定（必要に応じて有効化）
-    this.renderer.shadowMap.enabled = false;
+    // 影設定（ソフトシャドウを有効化して接地感を出す）
+    this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   }
 

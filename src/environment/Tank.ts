@@ -87,10 +87,12 @@ export class Tank {
       color: glassColor,
       transparent: true,
       opacity: glassOpacity,
-      roughness: 0.1,
+      roughness: 0.05,
       metalness: 0.0,
       transmission: 0.9,
       thickness: 0.5,
+      ior: 1.33, // 水の屈折率
+      envMapIntensity: 1.0,
       side: THREE.BackSide,
     });
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { WaterConfig, DEFAULT_WATER_CONFIG } from '../types/config';
 
 /**
@@ -8,6 +9,7 @@ import { WaterConfig, DEFAULT_WATER_CONFIG } from '../types/config';
 export class AquariumScene {
   private scene: THREE.Scene;
   private waterConfig: WaterConfig;
+  private environmentTexture: THREE.Texture | null = null;
 
   constructor(waterConfig: WaterConfig = DEFAULT_WATER_CONFIG) {
     this.waterConfig = waterConfig;
@@ -36,6 +38,23 @@ export class AquariumScene {
       this.waterConfig.fogNear,
       this.waterConfig.fogFar
     );
+  }
+
+  /**
+   * 環境マップ(IBL)をセットアップ
+   *
+   * RoomEnvironmentをPMREMで畳み込み、scene.environmentに適用する。
+   * これにより MeshPhysicalMaterial のガラス透過・反射や、
+   * 魚体の光沢に方向性のある映り込みが生まれる。
+   * （背景には使わず、ライティング用の環境としてのみ利用）
+   */
+  public setupEnvironment(renderer: THREE.WebGLRenderer): void {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envScene = new RoomEnvironment();
+    this.environmentTexture = pmrem.fromScene(envScene, 0.04).texture;
+    this.scene.environment = this.environmentTexture;
+    // 反射の強さは各マテリアルの envMapIntensity で個別に調整する
+    pmrem.dispose();
   }
 
   /**
@@ -92,6 +111,9 @@ export class AquariumScene {
    * シーンの破棄
    */
   public dispose(): void {
+    this.environmentTexture?.dispose();
+    this.scene.environment = null;
+
     // すべての子オブジェクトを再帰的に破棄
     this.scene.traverse((object) => {
       if (object instanceof THREE.Mesh) {

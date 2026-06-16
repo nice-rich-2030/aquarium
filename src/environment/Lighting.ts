@@ -11,7 +11,7 @@ export class Lighting {
   private ambientLight: THREE.AmbientLight;
   private directionalLight: THREE.DirectionalLight;
   private causticsPlane: THREE.Mesh | null = null;
-  private causticsTexture: THREE.CanvasTexture | null = null;
+  private causticsMaterial: THREE.ShaderMaterial | null = null;
   private tankBounds: THREE.Box3;
 
   constructor(tankBounds: THREE.Box3, config: LightingConfig = DEFAULT_LIGHTING_CONFIG) {
@@ -46,119 +46,103 @@ export class Lighting {
    */
   private setupDirectionalLight(): void {
     const size = this.tankBounds.getSize(new THREE.Vector3());
+    const light = this.directionalLight;
 
-    this.directionalLight.position.set(0, size.y * 2, 0);
-    this.directionalLight.target.position.set(0, 0, 0);
-    this.group.add(this.directionalLight.target);
+    // 斜め上から当てて、底面に魚の影が落ちるようにする
+    light.position.set(size.x * 0.35, size.y * 1.8, size.z * 0.5);
+    light.target.position.set(0, this.tankBounds.min.y, 0);
+    this.group.add(light.target);
+
+    // シャドウマップ設定
+    light.castShadow = true;
+    light.shadow.mapSize.set(2048, 2048);
+
+    // 影を投影する正射影カメラを水槽全体に合わせる
+    const cam = light.shadow.camera;
+    const extent = Math.max(size.x, size.z) * 0.75;
+    cam.left = -extent;
+    cam.right = extent;
+    cam.top = extent;
+    cam.bottom = -extent;
+    cam.near = 1;
+    cam.far = size.y * 4;
+    cam.updateProjectionMatrix();
+
+    // シャドウアクネ抑制
+    light.shadow.bias = -0.0005;
+    light.shadow.normalBias = 0.5;
+    light.shadow.radius = 3;
   }
 
   /**
-   * コースティクス効果を作成
+   * コースティクス効果を作成（GPUフラグメントシェーダーで生成）
+   *
+   * 従来はCanvas2Dで256pxのVoronoiを毎フレームCPU計算していたが、
+   * ドメインワーピングした正弦波をGPUで評価する方式に置き換え、
+   * 解像度フリー・低負荷で揺らめく光の網を底面に投影する。
    */
   private createCaustics(): void {
     const size = this.tankBounds.getSize(new THREE.Vector3());
 
-    // コースティクステクスチャをキャンバスで生成
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    this.causticsTexture = new THREE.CanvasTexture(canvas);
-    this.causticsTexture.wrapS = THREE.RepeatWrapping;
-    this.causticsTexture.wrapT = THREE.RepeatWrapping;
+    this.causticsMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uIntensity: { value: this.config.causticsIntensity },
+        uColor: { value: new THREE.Color(0xaad8ff) },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        varying vec2 vUv;
+        uniform float uTime;
+        uniform float uIntensity;
+        uniform vec3 uColor;
 
-    // 初期テクスチャを描画
-    this.updateCausticsTexture(0);
+        void main() {
+          // 底面を網目スケールにスケーリング
+          vec2 uv = vUv * 9.0;
+          float t = uTime * 0.6;
 
-    // コースティクスを投影するプレーン（底面に配置）
-    const geometry = new THREE.PlaneGeometry(size.x, size.z);
-    const material = new THREE.MeshBasicMaterial({
-      map: this.causticsTexture,
+          // ドメインワーピングで揺らめきを作る
+          for (int i = 1; i < 4; i++) {
+            float fi = float(i);
+            uv.x += 0.32 / fi * sin(fi * 1.8 * uv.y + t);
+            uv.y += 0.32 / fi * cos(fi * 1.8 * uv.x + t * 1.1);
+          }
+
+          // 干渉縞 → 光の集中部分を鋭く
+          float v = 0.5 + 0.5 * sin(uv.x) * sin(uv.y);
+          v = pow(v, 4.0);
+
+          gl_FragColor = vec4(uColor * v, v * uIntensity);
+        }
+      `,
       transparent: true,
-      opacity: this.config.causticsIntensity,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
 
-    this.causticsPlane = new THREE.Mesh(geometry, material);
+    // コースティクスを投影するプレーン（底面に配置）
+    const geometry = new THREE.PlaneGeometry(size.x, size.z);
+    this.causticsPlane = new THREE.Mesh(geometry, this.causticsMaterial);
     this.causticsPlane.rotation.x = -Math.PI / 2;
-    this.causticsPlane.position.y = this.tankBounds.min.y + 0.1;
+    this.causticsPlane.position.y = this.tankBounds.min.y + 0.15;
     this.causticsPlane.name = 'caustics';
 
     this.group.add(this.causticsPlane);
   }
 
   /**
-   * コースティクステクスチャを更新
-   */
-  private updateCausticsTexture(time: number): void {
-    if (!this.causticsTexture) return;
-
-    const canvas = this.causticsTexture.image as HTMLCanvasElement;
-    const ctx = canvas.getContext('2d')!;
-    const width = canvas.width;
-    const height = canvas.height;
-
-    // クリア
-    ctx.clearRect(0, 0, width, height);
-
-    // Voronoi風のコースティクスパターンを描画
-    const cellSize = 32;
-    const cells: { x: number; y: number }[] = [];
-
-    // セルの中心点を生成（時間で動く）
-    for (let i = 0; i < 64; i++) {
-      const baseX = (i % 8) * cellSize + cellSize / 2;
-      const baseY = Math.floor(i / 8) * cellSize + cellSize / 2;
-      cells.push({
-        x: baseX + Math.sin(time * 0.5 + i * 0.5) * 8,
-        y: baseY + Math.cos(time * 0.4 + i * 0.7) * 8,
-      });
-    }
-
-    // 各ピクセルについて最も近いセルとの距離を計算
-    const imageData = ctx.createImageData(width, height);
-    const data = imageData.data;
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let minDist = Infinity;
-        let secondMinDist = Infinity;
-
-        for (const cell of cells) {
-          const dx = x - cell.x;
-          const dy = y - cell.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist < minDist) {
-            secondMinDist = minDist;
-            minDist = dist;
-          } else if (dist < secondMinDist) {
-            secondMinDist = dist;
-          }
-        }
-
-        // 境界部分を明るく（コースティクスの光の集中）
-        const edge = secondMinDist - minDist;
-        const brightness = Math.pow(1 - Math.min(edge / 15, 1), 3) * 255;
-
-        const idx = (y * width + x) * 4;
-        data[idx] = brightness * 0.8;     // R
-        data[idx + 1] = brightness * 0.9; // G
-        data[idx + 2] = brightness;       // B
-        data[idx + 3] = brightness * 0.5; // A
-      }
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-    this.causticsTexture.needsUpdate = true;
-  }
-
-  /**
    * 毎フレーム更新
    */
   public update(time: number): void {
-    if (this.config.caustics && this.causticsTexture) {
-      this.updateCausticsTexture(time);
+    if (this.config.caustics && this.causticsMaterial) {
+      this.causticsMaterial.uniforms.uTime.value = time;
     }
   }
 
@@ -191,7 +175,7 @@ export class Lighting {
    * 破棄
    */
   public dispose(): void {
-    this.causticsTexture?.dispose();
+    this.causticsMaterial?.dispose();
     this.group.traverse((object) => {
       if (object instanceof THREE.Mesh) {
         object.geometry?.dispose();

@@ -42,7 +42,7 @@ export class FishGenerator {
     size: number
   ): THREE.Mesh {
     const segments = params.segments || 20;
-    const radialSegments = 12;
+    const radialSegments = 16;
     const length = params.length * size;
 
     const vertices: number[] = [];
@@ -51,6 +51,7 @@ export class FishGenerator {
 
     const primaryColor = new THREE.Color(colors.primary);
     const secondaryColor = new THREE.Color(colors.secondary);
+    const white = new THREE.Color(0xffffff);
 
     // 各セグメントについて断面を生成
     for (let i = 0; i <= segments; i++) {
@@ -64,16 +65,26 @@ export class FishGenerator {
       // 円周方向に頂点を生成
       for (let j = 0; j <= radialSegments; j++) {
         const angle = (j / radialSegments) * Math.PI * 2;
-        const y = Math.sin(angle) * height;
+        const ny = Math.sin(angle); // -1(腹)〜+1(背)
+        const y = ny * height;
         const z = Math.cos(angle) * width;
 
         vertices.push(x, y, z);
 
-        // 頂点カラー（グラデーション）
+        // ベースの模様（縞 or 体軸グラデーション）
         const colorT = colors.pattern === 'stripe'
           ? Math.floor(t * (colors.stripeCount || 3)) % 2
           : t;
-        const color = lerpColor(primaryColor, secondaryColor, colorT);
+        const color = lerpColor(primaryColor, secondaryColor, colorT).clone();
+
+        // カウンターシェーディング: 背側を濃く、腹側を明るく（魚特有の陰影）
+        color.multiplyScalar(1.0 - ny * 0.28);
+
+        // 腹側を白っぽく（多くの魚に見られる明色の腹部）
+        if (ny < 0) {
+          color.lerp(white, -ny * 0.45);
+        }
+
         vertexColors.push(color.r, color.g, color.b);
       }
     }
@@ -97,10 +108,16 @@ export class FishGenerator {
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
 
-    const material = new THREE.MeshStandardMaterial({
+    // 魚体: clearcoatで濡れた光沢、iridescenceで鱗の虹色反射を表現
+    const material = new THREE.MeshPhysicalMaterial({
       vertexColors: true,
-      roughness: 0.3,
-      metalness: 0.1,
+      roughness: 0.25,
+      metalness: 0.15,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.25,
+      iridescence: 0.4,
+      iridescenceIOR: 1.3,
+      envMapIntensity: 0.6,
       side: THREE.DoubleSide,
     });
 
@@ -122,19 +139,24 @@ export class FishGenerator {
     const group = new THREE.Group();
     group.name = 'fins';
 
+    // ヒレは胴体と同質の不透明マテリアルにして「ひとつの体」に見せる
+    // （半透明だと背景が透けて胴体から分離して見えるため）
     const finColor = colors.accent || colors.secondary;
-    const finMaterial = new THREE.MeshStandardMaterial({
+    const finMaterial = new THREE.MeshPhysicalMaterial({
       color: finColor,
-      roughness: 0.4,
-      metalness: 0.0,
-      transparent: true,
-      opacity: 0.8,
+      roughness: 0.3,
+      metalness: 0.1,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.25,
+      iridescence: 0.3,
+      iridescenceIOR: 1.3,
+      envMapIntensity: 0.55,
       side: THREE.DoubleSide,
     });
 
-    // 尾ビレ
+    // 尾ビレ（根元を胴体後端にめり込ませて接続部の隙間をなくす）
     const tail = this.generateTailFin(params.tail, size, finMaterial);
-    tail.position.x = (bodyLength * size) / 2;
+    tail.position.x = (bodyLength * size) / 2 - size * 0.4;
     group.add(tail);
 
     // 背ビレ
@@ -189,7 +211,6 @@ export class FishGenerator {
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'tail';
-    mesh.rotation.y = Math.PI / 2;
 
     return mesh;
   }
@@ -205,7 +226,6 @@ export class FishGenerator {
     shape.lineTo(0, 0);
 
     const geometry = new THREE.ShapeGeometry(shape);
-    geometry.rotateZ(-Math.PI / 2);
     return geometry;
   }
 
@@ -220,7 +240,6 @@ export class FishGenerator {
     shape.bezierCurveTo(size * 0.7, -size, size * 0.3, -size * 0.5, 0, 0);
 
     const geometry = new THREE.ShapeGeometry(shape);
-    geometry.rotateZ(-Math.PI / 2);
     return geometry;
   }
 
@@ -237,7 +256,6 @@ export class FishGenerator {
     shape.lineTo(0, 0);
 
     const geometry = new THREE.ShapeGeometry(shape);
-    geometry.rotateZ(-Math.PI / 2);
     return geometry;
   }
 
@@ -253,7 +271,6 @@ export class FishGenerator {
     shape.lineTo(0, 0);
 
     const geometry = new THREE.ShapeGeometry(shape);
-    geometry.rotateZ(-Math.PI / 2);
     return geometry;
   }
 
@@ -268,15 +285,16 @@ export class FishGenerator {
     const finSize = params.size * size;
     const shape = new THREE.Shape();
 
+    // 背中に立つ縦の板（xy平面・法線z）。底辺が体軸前後、頂点が上方向
     shape.moveTo(-finSize * 0.5, 0);
     shape.quadraticCurveTo(0, finSize * 1.2, finSize * 0.5, 0);
     shape.lineTo(-finSize * 0.5, 0);
 
     const geometry = new THREE.ShapeGeometry(shape);
-    geometry.rotateX(-Math.PI / 2);
 
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(params.x * size, evaluateBezier([0.3, 1.0, 1.0, 0.1], 0.4) * size, 0);
+    // 根元を胴体上面に少し埋めて一体化（係数0.75で胴体側へ沈める）
+    mesh.position.set(params.x * size, evaluateBezier([0.3, 1.0, 1.0, 0.1], 0.4) * size * 0.75, 0);
     mesh.rotation.z = params.angle;
     mesh.name = 'dorsal';
 

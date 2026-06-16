@@ -4,8 +4,18 @@ import { randomRange } from '../utils/math';
 
 /**
  * 水草のプロシージャルジェネレーター
+ *
+ * 茎を複数の関節セグメント（stem-seg）のネストで構成し、
+ * 各関節をわずかずつ曲げることで「弧を描いてしなる」茎を表現する。
+ * 静的な初期しなりに加え、全草で共通の水流場による動的なうねりを与える。
  */
 export class PlantGenerator {
+  // 水槽全体を流れる共通の水流場（全草で共有して連動させる）
+  private static readonly FLOW_SPEED = 1.1;
+  private static readonly FLOW_WAVE_NUMBER_X = 0.09;
+  private static readonly FLOW_WAVE_NUMBER_Z = -0.06;
+  private static readonly SEGMENTS = 6;
+
   /**
    * 水草のメッシュを生成
    */
@@ -14,13 +24,10 @@ export class PlantGenerator {
     const group = new THREE.Group();
     group.name = 'plant';
 
-    // 複数の茎を生成
     for (let i = 0; i < config.stemCount; i++) {
-      const stem = this.generateStem(config, i);
-      group.add(stem);
+      group.add(this.generateStem(config, i));
     }
 
-    // 揺れアニメーション用のユーザーデータを設定
     group.userData = {
       swaySpeed: config.swaySpeed,
       swayAmount: config.swayAmount,
@@ -31,35 +38,81 @@ export class PlantGenerator {
   }
 
   /**
-   * 茎を生成
+   * 茎を多関節セグメントで生成
    */
   private static generateStem(config: PlantParams, index: number): THREE.Group {
     const stemGroup = new THREE.Group();
+    stemGroup.name = 'stem-group';
+
     const height = randomRange(config.stemHeight.min, config.stemHeight.max);
-    const segments = 8;
+    const segments = this.SEGMENTS;
+    const segLen = height / segments;
+    const baseRadius = 0.16;
 
-    // 茎のカーブを生成
-    const curve = this.generateStemCurve(height, config.stemCurve, index);
-
-    // 茎のジオメトリ
-    const stemGeometry = new THREE.TubeGeometry(curve, segments, 0.1, 6, false);
-
-    // 茎のマテリアル
+    const stemColor = new THREE.Color(config.color).multiplyScalar(0.7);
     const stemMaterial = new THREE.MeshStandardMaterial({
-      color: config.color,
+      color: stemColor,
       roughness: 0.7,
       metalness: 0.0,
+      envMapIntensity: 0.4,
+    });
+    const leafColor = new THREE.Color(config.color).multiplyScalar(1.15);
+    const leafMaterial = new THREE.MeshStandardMaterial({
+      color: leafColor,
+      roughness: 0.55,
+      metalness: 0.0,
+      emissive: new THREE.Color(config.color).multiplyScalar(0.15),
+      envMapIntensity: 0.5,
+      side: THREE.DoubleSide,
     });
 
-    const stemMesh = new THREE.Mesh(stemGeometry, stemMaterial);
-    stemMesh.name = 'stem';
-    stemGroup.add(stemMesh);
+    // 株ごとの静的しなり（向きと強さ）
+    const bendDir = Math.random() * Math.PI * 2;
+    const baseBend = 0.05 + Math.random() * 0.04;
 
-    // 葉を追加
-    const leaves = this.generateLeaves(curve, config, height);
-    stemGroup.add(leaves);
+    const leafPerSeg = Math.max(1, Math.round(config.leafCount / segments));
 
-    // 茎をランダムな位置に配置
+    // ネストした関節を積み上げる（各 seg は親 seg の先端に乗る）
+    let parent: THREE.Object3D = stemGroup;
+    for (let s = 0; s < segments; s++) {
+      const seg = new THREE.Group();
+      seg.name = 'stem-seg';
+      seg.position.y = s === 0 ? 0 : segLen;
+      seg.userData.segIndex = s;
+      seg.userData.bendDir = bendDir;
+      seg.userData.baseBend = baseBend;
+
+      // このセグメントの茎（根元側を太く、先端側を細く）
+      const rBot = THREE.MathUtils.lerp(baseRadius, baseRadius * 0.3, s / segments);
+      const rTop = THREE.MathUtils.lerp(baseRadius, baseRadius * 0.3, (s + 1) / segments);
+      const cylGeo = new THREE.CylinderGeometry(rTop, rBot, segLen, 6, 1);
+      cylGeo.translate(0, segLen / 2, 0);
+      const cyl = new THREE.Mesh(cylGeo, stemMaterial);
+      cyl.name = 'stem';
+      cyl.castShadow = true;
+      seg.add(cyl);
+
+      // 葉（根元セグメントを除いて分散配置）
+      if (s >= 1) {
+        for (let l = 0; l < leafPerSeg; l++) {
+          const leafGeo = this.createLeafGeometry(config.leafSize);
+          const leaf = new THREE.Mesh(leafGeo, leafMaterial);
+          leaf.position.y = ((l + 0.5) / leafPerSeg) * segLen;
+          const rx = Math.random() * 0.4 - 0.2;
+          const rz = Math.random() * 0.5 - 0.25;
+          leaf.rotation.set(rx, Math.random() * Math.PI * 2, rz);
+          leaf.userData.heightRatio = (s + (l + 0.5) / leafPerSeg) / segments;
+          leaf.userData.baseRot = { x: rx, z: rz };
+          leaf.castShadow = true;
+          seg.add(leaf);
+        }
+      }
+
+      parent.add(seg);
+      parent = seg;
+    }
+
+    // 株を中心付近のランダムな位置に
     const radius = 1;
     const angle = (index / config.stemCount) * Math.PI * 2 + Math.random() * 0.5;
     stemGroup.position.set(
@@ -72,110 +125,56 @@ export class PlantGenerator {
   }
 
   /**
-   * 茎のカーブを生成
-   */
-  private static generateStemCurve(
-    height: number,
-    curveFactor: number,
-    index: number
-  ): THREE.CatmullRomCurve3 {
-    const points: THREE.Vector3[] = [];
-    const segmentCount = 5;
-
-    // 根元
-    const angle = index * 0.5;
-    const curveX = Math.sin(angle) * curveFactor;
-    const curveZ = Math.cos(angle) * curveFactor;
-
-    for (let i = 0; i <= segmentCount; i++) {
-      const t = i / segmentCount;
-      const x = curveX * t * t;
-      const y = height * t;
-      const z = curveZ * t * t;
-      points.push(new THREE.Vector3(x, y, z));
-    }
-
-    return new THREE.CatmullRomCurve3(points);
-  }
-
-  /**
-   * 葉を生成
-   */
-  private static generateLeaves(
-    curve: THREE.CatmullRomCurve3,
-    config: PlantParams,
-    _height: number
-  ): THREE.Group {
-    const leavesGroup = new THREE.Group();
-    leavesGroup.name = 'leaves';
-
-    const leafMaterial = new THREE.MeshStandardMaterial({
-      color: config.color,
-      roughness: 0.6,
-      metalness: 0.0,
-      side: THREE.DoubleSide,
-    });
-
-    for (let i = 0; i < config.leafCount; i++) {
-      const t = 0.3 + (i / config.leafCount) * 0.6;
-      const position = curve.getPointAt(t);
-
-      // 葉の形状
-      const leafGeometry = this.createLeafGeometry(config.leafSize);
-      const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
-
-      leaf.position.copy(position);
-
-      // ランダムな向き
-      leaf.rotation.set(
-        Math.random() * 0.5 - 0.25,
-        Math.random() * Math.PI * 2,
-        Math.random() * 0.5
-      );
-
-      // 高さに応じた高さ比率を保存（揺れアニメーション用）
-      leaf.userData.heightRatio = t;
-
-      leavesGroup.add(leaf);
-    }
-
-    return leavesGroup;
-  }
-
-  /**
-   * 葉のジオメトリを作成
+   * 葉のジオメトリを作成（楕円的なカーブ）
    */
   private static createLeafGeometry(size: number): THREE.BufferGeometry {
     const shape = new THREE.Shape();
-
-    // 葉の形状（楕円的なカーブ）
     shape.moveTo(0, 0);
     shape.quadraticCurveTo(size * 0.3, size * 0.5, 0, size);
     shape.quadraticCurveTo(-size * 0.3, size * 0.5, 0, 0);
-
-    const geometry = new THREE.ShapeGeometry(shape);
-    geometry.rotateX(-Math.PI / 2);
-
-    return geometry;
+    return new THREE.ShapeGeometry(shape);
   }
 
   /**
-   * 水草の揺れを更新
+   * 水草の揺れを更新（全草共通の水流場で連動）
    */
   public static updateSway(plant: THREE.Group, time: number): void {
     const userData = plant.userData;
-    if (!userData || userData.swaySpeed === undefined) return;
+    if (!userData || userData.swayAmount === undefined) return;
 
     const swayAmount = userData.swayAmount;
-    const phase = userData.phase;
+
+    // 位置に応じた空間位相 → 隣接する草ほど連動して揺れる進行波
+    const spatialPhase =
+      plant.position.x * this.FLOW_WAVE_NUMBER_X +
+      plant.position.z * this.FLOW_WAVE_NUMBER_Z;
+    const flowBase = time * this.FLOW_SPEED + spatialPhase;
+    const jitter = (userData.phase || 0) * 0.1;
 
     plant.traverse((child) => {
-      if (child.name === 'leaves' || child.userData.heightRatio !== undefined) {
-        const heightRatio = child.userData.heightRatio || 0.5;
-        const sway = Math.sin(time * userData.swaySpeed + phase + heightRatio * 2) * swayAmount * heightRatio * heightRatio;
+      if (child.name === 'stem-seg') {
+        const s = child.userData.segIndex || 0;
+        const baseBend = child.userData.baseBend || 0.05;
+        const dir = child.userData.bendDir || 0;
 
-        child.rotation.x = sway;
-        child.rotation.z = sway * 0.5;
+        // セグメントごとの位相遅延で、うねりが茎を上方へ伝播する
+        // （動的成分は控えめに。静的な弧 baseBend で曲がりは保つ）
+        const flow = flowBase + s * 0.4 + jitter;
+        const dyn = Math.sin(flow) * swayAmount * 0.05;
+        const bend = baseBend + dyn;
+
+        // 各関節をしなり方向へ曲げる（累積して弧になる）
+        child.rotation.z = Math.cos(dir) * bend;
+        child.rotation.x = Math.sin(dir) * bend;
+        return;
+      }
+
+      if (child.userData.heightRatio !== undefined) {
+        const hr = child.userData.heightRatio;
+        const base = child.userData.baseRot || { x: 0, z: 0 };
+        const sway = Math.sin(flowBase + hr * 1.5) * swayAmount * 0.18 * hr;
+        child.rotation.x = base.x + sway;
+        child.rotation.z = base.z + sway * 0.5;
       }
     });
   }

@@ -41,12 +41,33 @@ export interface ShellParams {
   color: string;
 }
 
-// ジェネレータパラメータ（共用体）
-export type GeneratorParams = RockParams | PlantParams | CoralParams | ShellParams;
+// 水車の生成パラメータ
+export interface WaterWheelParams {
+  radius: number;       // 車輪の半径
+  width: number;        // 奥行き（羽根の幅）
+  paddleCount: number;  // 羽根の枚数
+  woodColor: string;    // 木部の色
+  frameColor: string;   // 支柱の色
+  hubColor: string;     // 軸の色
+}
 
-// アニメーションパラメータ（揺れなど）
+// 水中生物（亀・エイ）の生成パラメータ
+export interface CreatureModelParams {
+  size: number; // 全体スケール
+}
+
+// ジェネレータパラメータ（共用体）
+export type GeneratorParams =
+  | RockParams
+  | PlantParams
+  | CoralParams
+  | ShellParams
+  | WaterWheelParams
+  | CreatureModelParams;
+
+// アニメーションパラメータ（揺れ・回転・遊泳など）
 export interface DecorationAnimationParams {
-  type: 'sway' | 'rotate' | 'none';
+  type: 'sway' | 'rotate' | 'turtle' | 'ray' | 'none';
   speed?: number;
   amount?: number;
 }
@@ -101,6 +122,20 @@ export const DEFAULT_PLANT_PARAMS: PlantParams = {
   swaySpeed: 1.0,
   swayAmount: 0.3,
 };
+
+// デフォルトの水車パラメータ
+export const DEFAULT_WATERWHEEL_PARAMS: WaterWheelParams = {
+  radius: 16,
+  width: 10,
+  paddleCount: 12,
+  woodColor: '#8a5a2b',
+  frameColor: '#5c3d1e',
+  hubColor: '#3a3a3a',
+};
+
+// デフォルトの水中生物パラメータ
+export const DEFAULT_TURTLE_PARAMS: CreatureModelParams = { size: 1 };
+export const DEFAULT_RAY_PARAMS: CreatureModelParams = { size: 1 };
 
 // デフォルトのサンゴパラメータ
 export const DEFAULT_CORAL_PARAMS: CoralParams = {

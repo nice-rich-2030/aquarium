@@ -77,9 +77,9 @@ export interface AquariumConfig {
 
 // デフォルトの水槽設定
 export const DEFAULT_TANK_CONFIG: TankConfig = {
-  width: 100,
+  width: 200,
   height: 60,
-  depth: 50,
+  depth: 100,
   glassColor: '#88ccff',
   glassOpacity: 0.1,
   sandColor: '#c4a35a',
@@ -99,8 +99,8 @@ export const DEFAULT_LIGHTING_CONFIG: LightingConfig = {
 // デフォルトの水エフェクト設定
 export const DEFAULT_WATER_CONFIG: WaterConfig = {
   fogColor: '#003355',
-  fogNear: 10,
-  fogFar: 150,
+  fogNear: 40,
+  fogFar: 340,
   surfaceWaves: true,
   waveSpeed: 0.5,
   waveHeight: 0.5,
@@ -119,23 +119,23 @@ export const DEFAULT_PARTICLE_CONFIG: ParticleConfig = {
 export const DEFAULT_CAMERA_CONFIG: CameraConfig = {
   fov: 60,
   near: 0.1,
-  far: 1000,
-  initialPosition: { x: 0, y: 20, z: 80 },
+  far: 1500,
+  initialPosition: { x: 0, y: 30, z: 150 },
   lookAt: { x: 0, y: 0, z: 0 },
   autoRotate: false,
   autoRotateSpeed: 0.5,
   minDistance: 30,
-  maxDistance: 200,
+  maxDistance: 380,
   minPolarAngle: Math.PI * 0.1,
   maxPolarAngle: Math.PI * 0.8,
 };
 
 // デフォルトのカメラプリセット
 export const DEFAULT_CAMERA_PRESETS: CameraPreset[] = [
-  { name: '正面', position: { x: 0, y: 10, z: 80 }, lookAt: { x: 0, y: 0, z: 0 } },
-  { name: '上から', position: { x: 0, y: 80, z: 0 }, lookAt: { x: 0, y: 0, z: 0 } },
-  { name: 'コーナー', position: { x: 60, y: 30, z: 60 }, lookAt: { x: 0, y: 0, z: 0 } },
-  { name: '横から', position: { x: 100, y: 10, z: 0 }, lookAt: { x: 0, y: 0, z: 0 } },
+  { name: '正面', position: { x: 0, y: 20, z: 150 }, lookAt: { x: 0, y: 0, z: 0 } },
+  { name: '上から', position: { x: 0, y: 150, z: 0 }, lookAt: { x: 0, y: 0, z: 0 } },
+  { name: 'コーナー', position: { x: 120, y: 50, z: 120 }, lookAt: { x: 0, y: 0, z: 0 } },
+  { name: '横から', position: { x: 190, y: 15, z: 0 }, lookAt: { x: 0, y: 0, z: 0 } },
 ];
 
 // デフォルトの全体設定
