@@ -26,9 +26,75 @@ export class FishGenerator {
     const fins = this.generateFins(finParams, colors, size, bodyParams.length);
     group.add(fins);
 
+    // 口を生成
+    const mouth = this.generateMouth(bodyParams, colors, size);
+    group.add(mouth);
+
     // 目を生成
     const eyes = this.generateEyes(bodyParams, size);
     group.add(eyes);
+
+    return group;
+  }
+
+  /**
+   * 口を生成
+   *
+   * 頭部前端に、わずかに開いた開口部（暗色のくぼみ）と下唇のふくらみを置く。
+   * 単に胴体が窄まるだけだった頭部に、口らしい立体感を与える。
+   */
+  private static generateMouth(
+    params: BodyParams,
+    colors: ColorPalette,
+    size: number
+  ): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'mouth';
+
+    // 頭部前端の寸法（t=0.06 付近の断面）
+    const headWidth = evaluateBezier(params.widthCurve, 0.06) * size;
+    const headHeight = evaluateBezier(params.heightCurve, 0.06) * size;
+    const frontX = -params.length * size * 0.5;
+
+    // やや下寄り（亜終位の口）。前端のすぐ内側に配置
+    const mouthY = -headHeight * 0.12;
+    const mouthX = frontX + size * 0.04;
+
+    // 開口部（暗いくぼみ）: 横長の楕円ディスク
+    const gapGeo = new THREE.SphereGeometry(1, 10, 8);
+    gapGeo.scale(size * 0.05, headHeight * 0.34, headWidth * 0.85);
+    const gapMat = new THREE.MeshStandardMaterial({
+      color: 0x30100f,
+      roughness: 0.7,
+      metalness: 0.0,
+    });
+    const gap = new THREE.Mesh(gapGeo, gapMat);
+    gap.position.set(mouthX, mouthY, 0);
+    group.add(gap);
+
+    // 唇（上下のふくらみ）: 胴体色をわずかに暗くした色で口を縁取る
+    const lipColor = new THREE.Color(colors.primary).multiplyScalar(0.82);
+    const lipMat = new THREE.MeshPhysicalMaterial({
+      color: lipColor,
+      roughness: 0.35,
+      metalness: 0.1,
+      clearcoat: 0.4,
+      clearcoatRoughness: 0.3,
+    });
+
+    // 下唇（前方へわずかに突き出す）
+    const lowerGeo = new THREE.SphereGeometry(1, 10, 6);
+    lowerGeo.scale(size * 0.08, headHeight * 0.16, headWidth * 0.8);
+    const lower = new THREE.Mesh(lowerGeo, lipMat);
+    lower.position.set(mouthX - size * 0.02, mouthY - headHeight * 0.26, 0);
+    group.add(lower);
+
+    // 上唇
+    const upperGeo = new THREE.SphereGeometry(1, 10, 6);
+    upperGeo.scale(size * 0.06, headHeight * 0.14, headWidth * 0.78);
+    const upper = new THREE.Mesh(upperGeo, lipMat);
+    upper.position.set(mouthX + size * 0.005, mouthY + headHeight * 0.22, 0);
+    group.add(upper);
 
     return group;
   }

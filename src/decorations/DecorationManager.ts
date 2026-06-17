@@ -124,6 +124,24 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
     id: 'coral-yellow', name: '珊瑚（黄）', category: 'coral', generatorType: 'coral',
     params: { ...DEFAULT_CORAL_PARAMS, color: '#ffd24d', branchDepth: 3, length: 2.0, thickness: 0.4 },
   },
+  // テーブルサンゴ（傘状に広がるミドリイシ風）
+  {
+    id: 'coral-table-orange', name: 'テーブル珊瑚（橙）', category: 'coral', generatorType: 'coral',
+    params: { ...DEFAULT_CORAL_PARAMS, shape: 'table', color: '#ffae5c', length: 1.7, thickness: 0.4 },
+  },
+  {
+    id: 'coral-table-purple', name: 'テーブル珊瑚（紫）', category: 'coral', generatorType: 'coral',
+    params: { ...DEFAULT_CORAL_PARAMS, shape: 'table', color: '#a987ff', length: 1.7, thickness: 0.4 },
+  },
+  // 脳サンゴ（塊状・溝模様のハマサンゴ／ノウサンゴ風）
+  {
+    id: 'coral-brain-pink', name: '脳珊瑚（桃）', category: 'coral', generatorType: 'coral',
+    params: { ...DEFAULT_CORAL_PARAMS, shape: 'brain', color: '#ff8fab', thickness: 0.5 },
+  },
+  {
+    id: 'coral-brain-green', name: '脳珊瑚（緑）', category: 'coral', generatorType: 'coral',
+    params: { ...DEFAULT_CORAL_PARAMS, shape: 'brain', color: '#7fc7a3', thickness: 0.5 },
+  },
 ];
 
 /**
@@ -233,12 +251,14 @@ export class DecorationManager {
     mesh.rotation.copy(rotation);
     mesh.scale.setScalar(scale);
 
-    // 影を落とし、かつ受ける。ただし草は数が多く影の効果が薄いため
-    // castShadow を無効化してシャドウマップの描画負荷を抑える
+    // 影を落とし、かつ受ける。ただし草や小物は数が多く影の効果が薄いため
+    // castShadow を無効化してシャドウマップの描画負荷を抑える。
+    // 明示指定（config.castShadow）があればそれを優先する。
     const isPlant = definition.generatorType === 'plant';
+    const castShadow = config.castShadow ?? !isPlant;
     mesh.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        child.castShadow = !isPlant;
+        child.castShadow = castShadow;
         child.receiveShadow = true;
       }
     });
@@ -471,10 +491,15 @@ export class DecorationManager {
    * 珊瑚を小範囲にまとめて礁を作る（色をランダムに混ぜる）
    */
   private placeCoralCluster(cx: number, cz: number, floorY: number): void {
-    const colors = ['coral-pink', 'coral-orange', 'coral-purple', 'coral-yellow'];
+    // 形状（樹状/テーブル/脳）× 4色を混ぜて自然な礁にする
+    const ids = [
+      'coral-pink', 'coral-orange', 'coral-purple', 'coral-yellow',
+      'coral-table-orange', 'coral-table-purple',
+      'coral-brain-pink', 'coral-brain-green',
+    ];
     const n = 5 + Math.floor(Math.random() * 2);
     for (let i = 0; i < n; i++) {
-      const id = colors[Math.floor(Math.random() * colors.length)];
+      const id = ids[Math.floor(Math.random() * ids.length)];
       const gx = cx + ((Math.random() + Math.random()) / 2 - 0.5) * 20;
       const gz = cz + ((Math.random() + Math.random()) / 2 - 0.5) * 16;
       this.place({
@@ -482,6 +507,7 @@ export class DecorationManager {
         position: { x: gx, y: floorY, z: gz },
         rotation: { x: 0, y: Math.random() * Math.PI * 2, z: 0 },
         scale: 1.8 + Math.random() * 1.6,
+        castShadow: false, // 珊瑚は枝メッシュが多くシャドウ負荷が高いため対象外
       });
     }
   }
@@ -498,6 +524,7 @@ export class DecorationManager {
         position: { x: gx, y: floorY, z: gz },
         rotation: { x: 0, y: Math.random() * Math.PI, z: 0 },
         scale: 0.35 + Math.random() * 0.4,
+        castShadow: false, // 小石は影の効果が薄く数が多いためシャドウ対象から外す
       });
     }
   }

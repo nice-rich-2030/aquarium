@@ -25,6 +25,9 @@ export interface PlantParams {
   swayAmount: number;
 }
 
+// サンゴの形状タイプ（樹状・テーブル状・塊状/脳状）
+export type CoralShape = 'branching' | 'table' | 'brain';
+
 // サンゴの生成パラメータ
 export interface CoralParams {
   branchDepth: number;
@@ -32,6 +35,7 @@ export interface CoralParams {
   thickness: number;
   length: number;
   color: string;
+  shape?: CoralShape; // 省略時は 'branching'
 }
 
 // 貝殻の生成パラメータ
@@ -99,6 +103,7 @@ export interface DecorationPlacementConfig {
   position: { x: number; y: number; z: number };
   rotation?: { x: number; y: number; z: number };
   scale?: number;
+  castShadow?: boolean; // 省略時は定義側の既定（草以外は影を落とす）
 }
 
 // デフォルトの岩パラメータ
