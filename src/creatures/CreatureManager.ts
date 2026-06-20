@@ -8,6 +8,7 @@ import {
 } from '../types/creatures';
 import { FishGenerator } from './FishGenerator';
 import { BoidsBehavior } from './BoidsBehavior';
+import { FeedingManager } from './FeedingManager';
 import { randomInBox, randomRange, headingToQuaternion } from '../utils/math';
 
 // デフォルトの生き物定義
@@ -84,6 +85,7 @@ export class CreatureManager {
   private boidsBehavior: BoidsBehavior;
   private tankBounds: THREE.Box3;
   private nextInstanceId: number = 0;
+  private feedingManager: FeedingManager | null = null;
 
   constructor(tankBounds: THREE.Box3) {
     this.tankBounds = tankBounds;
@@ -237,11 +239,27 @@ export class CreatureManager {
   }
 
   /**
+   * 餌やりシステムを接続する
+   */
+  public setFeedingManager(feeding: FeedingManager): void {
+    this.feedingManager = feeding;
+  }
+
+  /**
    * 毎フレーム更新
    */
   public update(delta: number, elapsed: number): void {
-    // Boids行動更新
-    this.boidsBehavior.update(this.instances, delta);
+    // Boids行動更新（餌があれば摂餌行動も行う）
+    this.boidsBehavior.update(
+      this.instances,
+      delta,
+      this.feedingManager
+        ? {
+            pellets: this.feedingManager.getPellets(),
+            consume: (p) => this.feedingManager!.consume(p),
+          }
+        : undefined
+    );
 
     // アニメーション更新
     for (const instance of this.instances) {

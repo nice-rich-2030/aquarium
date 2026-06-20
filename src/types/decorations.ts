@@ -96,6 +96,12 @@ export interface DecorationInstance {
   rotation: THREE.Euler;
   scale: number;
   animation?: DecorationAnimationParams;
+  // 回遊する生物（亀・エイ）の状態
+  roamDir?: THREE.Vector3;      // 水平な前進方向（単位ベクトル）
+  roamSpeed?: number;          // 巡航速度(units/sec)
+  reactionTimer?: number;      // クリック反応（驚いて逃げる）の残り時間(秒)
+  reactionDir?: THREE.Vector3; // 反応時の逃避方向
+  satietyTimer?: number;       // 餌を食べた後の満腹の残り時間(秒)。>0 の間は餌に反応しない
 }
 
 // 装飾配置設定

@@ -1,6 +1,6 @@
 import { AquariumScene, AquariumRenderer, AquariumCamera, AnimationLoop, PostProcessing } from './core';
 import { Tank, Lighting, Particles } from './environment';
-import { CreatureManager } from './creatures';
+import { CreatureManager, FeedingManager } from './creatures';
 import { DecorationManager } from './decorations';
 import { SettingsPanel, CreatureInteraction } from './ui';
 import {
@@ -25,6 +25,7 @@ class DigitalAquarium {
   private lighting: Lighting;
   private particles: Particles;
   private creatureManager: CreatureManager;
+  private feedingManager: FeedingManager;
   private decorationManager: DecorationManager;
   private settingsPanel: SettingsPanel;
   private creatureInteraction: CreatureInteraction;
@@ -66,9 +67,16 @@ class DigitalAquarium {
     this.creatureManager = new CreatureManager(this.tank.getSwimmableArea());
     this.scene.add(this.creatureManager.getGroup());
 
+    // 餌やりシステムを作成し、魚AIに接続
+    this.feedingManager = new FeedingManager(this.tank.getSwimmableArea());
+    this.scene.add(this.feedingManager.getGroup());
+    this.creatureManager.setFeedingManager(this.feedingManager);
+
     // 装飾マネージャーを作成
     this.decorationManager = new DecorationManager(this.tank.getBounds());
     this.scene.add(this.decorationManager.getGroup());
+    // 亀・エイも餌を食べられるよう餌やりシステムを接続
+    this.decorationManager.setFeedingManager(this.feedingManager);
 
     // デフォルトの生き物を配置
     this.spawnDefaultCreatures();
@@ -96,7 +104,8 @@ class DigitalAquarium {
       this.renderer.getDomElement(),
       this.camera.getCamera(),
       this.creatureManager,
-      this.decorationManager
+      this.decorationManager,
+      this.feedingManager
     );
 
     // ループを設定
@@ -159,6 +168,9 @@ class DigitalAquarium {
       // パーティクル更新
       this.particles.update(delta, elapsed);
 
+      // 餌の沈降・寿命を更新（魚AIが参照する前に位置を更新）
+      this.feedingManager.update(delta);
+
       // 生き物更新
       this.creatureManager.update(delta, elapsed);
 
@@ -215,6 +227,7 @@ class DigitalAquarium {
     this.postProcessing.dispose();
     this.settingsPanel.dispose();
     this.creatureInteraction.dispose();
+    this.feedingManager.dispose();
     this.creatureManager.dispose();
     this.decorationManager.dispose();
     this.particles.dispose();

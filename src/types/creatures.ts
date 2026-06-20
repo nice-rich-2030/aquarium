@@ -73,6 +73,8 @@ export interface CreatureInstance {
   // クリックで誘発される反転アクションの残り時間(秒)と目標方向（任意）
   flipTimer?: number;
   flipDir?: THREE.Vector3;
+  // 餌を食べた後の満腹の残り時間(秒)。>0 の間は餌に反応しない
+  satietyTimer?: number;
 }
 
 // 生き物スポーン設定

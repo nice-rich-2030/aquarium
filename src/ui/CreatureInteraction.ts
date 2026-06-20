@@ -1,13 +1,16 @@
 import * as THREE from 'three';
-import { CreatureManager } from '../creatures';
+import { CreatureManager, FeedingManager } from '../creatures';
 import { DecorationManager } from '../decorations';
 import { CreatureInstance } from '../types/creatures';
+import { DecorationInstance } from '../types/decorations';
 
-// ホバー対象の情報＋（魚のみ）クリックで反転できる個体参照
+// ホバー対象の情報＋クリックで反応できる個体参照（魚 or 回遊する装飾）
 interface HoverTarget {
   name: string;
   description: string;
   creature?: CreatureInstance;
+  decoration?: DecorationInstance;
+  reactable?: boolean; // クリック反応できるか（魚 or 亀・エイ）
 }
 
 /**
@@ -21,6 +24,7 @@ export class CreatureInteraction {
   private camera: THREE.Camera;
   private creatureManager: CreatureManager;
   private decorationManager: DecorationManager;
+  private feedingManager: FeedingManager;
 
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
@@ -38,12 +42,14 @@ export class CreatureInteraction {
     domElement: HTMLElement,
     camera: THREE.Camera,
     creatureManager: CreatureManager,
-    decorationManager: DecorationManager
+    decorationManager: DecorationManager,
+    feedingManager: FeedingManager
   ) {
     this.domElement = domElement;
     this.camera = camera;
     this.creatureManager = creatureManager;
     this.decorationManager = decorationManager;
+    this.feedingManager = feedingManager;
 
     this.tooltip = this.createTooltip();
 
@@ -51,6 +57,7 @@ export class CreatureInteraction {
     this.domElement.addEventListener('pointerdown', this.onPointerDown);
     this.domElement.addEventListener('pointerup', this.onPointerUp);
     this.domElement.addEventListener('pointerleave', this.onPointerLeave);
+    this.domElement.addEventListener('dblclick', this.onDoubleClick);
   }
 
   /**
@@ -106,11 +113,13 @@ export class CreatureInteraction {
       const creature = this.creatureManager.findInstanceByObject(hit.object);
       if (creature) {
         const info = this.creatureManager.getDisplayInfo(creature);
-        return { ...info, creature };
+        return { ...info, creature, reactable: true };
       }
       const decoration = this.decorationManager.findInstanceByObject(hit.object);
       if (decoration) {
-        return this.decorationManager.getDisplayInfo(decoration);
+        const info = this.decorationManager.getDisplayInfo(decoration);
+        const reactable = this.decorationManager.canReact(decoration);
+        return { ...info, decoration, reactable };
       }
     }
     return null;
@@ -151,8 +160,8 @@ export class CreatureInteraction {
       this.tooltip.innerHTML =
         `<div style="font-weight:600;margin-bottom:2px">${target.name}</div>` + desc;
       this.tooltip.style.opacity = '1';
-      // 魚はクリックで反転できるのでポインタ、装飾は通常カーソル
-      this.domElement.style.cursor = target.creature ? 'pointer' : '';
+      // クリック反応できる対象（魚・亀・エイ）はポインタ、それ以外は通常カーソル
+      this.domElement.style.cursor = target.reactable ? 'pointer' : '';
     } else {
       this.hideTooltip();
     }
@@ -178,11 +187,37 @@ export class CreatureInteraction {
     const target = this.pickTarget();
     if (target?.creature) {
       this.creatureManager.triggerFlip(target.creature);
+    } else if (target?.decoration && target.reactable) {
+      this.decorationManager.triggerReaction(target.decoration);
     }
   };
 
   private onPointerLeave = (): void => {
     this.hideTooltip();
+  };
+
+  /**
+   * ダブルクリックでその位置に餌を投下する。
+   *
+   * 2D座標から3D位置を得るため、カメラ正対・水槽中心を通る平面と
+   * クリック光線の交点を投下位置とする（どのカメラ角度でも自然な奥行きになる）。
+   */
+  private onDoubleClick = (event: MouseEvent): void => {
+    const rect = this.domElement.getBoundingClientRect();
+    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+
+    const normal = this.camera.getWorldDirection(new THREE.Vector3());
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
+      normal,
+      this.feedingManager.getCenter()
+    );
+    const point = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(plane, point)) {
+      this.feedingManager.spawn(point);
+    }
   };
 
   /**
@@ -193,6 +228,7 @@ export class CreatureInteraction {
     this.domElement.removeEventListener('pointerdown', this.onPointerDown);
     this.domElement.removeEventListener('pointerup', this.onPointerUp);
     this.domElement.removeEventListener('pointerleave', this.onPointerLeave);
+    this.domElement.removeEventListener('dblclick', this.onDoubleClick);
     this.tooltip.remove();
   }
 }

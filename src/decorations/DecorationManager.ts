@@ -15,6 +15,7 @@ import {
   CreatureModelParams,
   CoralParams,
 } from '../types/decorations';
+import { FeedingManager } from '../creatures';
 import { RockGenerator } from './RockGenerator';
 import { PlantGenerator } from './PlantGenerator';
 import { WaterWheelGenerator } from './WaterWheelGenerator';
@@ -170,6 +171,7 @@ export class DecorationManager {
   private instances: DecorationInstance[] = [];
   private tankBounds: THREE.Box3;
   private nextInstanceId: number = 0;
+  private feedingManager: FeedingManager | null = null;
 
   constructor(tankBounds: THREE.Box3) {
     this.tankBounds = tankBounds;
@@ -290,6 +292,18 @@ export class DecorationManager {
       animation: definition.animation,
     };
 
+    // 回遊する生物（亀・エイ）の初期状態。モデルは +X が前方なので
+    // rotation.y から水平な前進方向ベクトルを作る。
+    if (definition.generatorType === 'turtle' || definition.generatorType === 'ray') {
+      instance.roamDir = new THREE.Vector3(
+        Math.cos(rotation.y),
+        0,
+        -Math.sin(rotation.y)
+      ).normalize();
+      instance.roamSpeed = definition.generatorType === 'turtle' ? 4.5 : 6.0;
+      instance.reactionTimer = 0;
+    }
+
     return instance;
   }
 
@@ -339,7 +353,14 @@ export class DecorationManager {
   /**
    * 毎フレーム更新
    */
-  public update(_delta: number, elapsed: number): void {
+  /**
+   * 餌やりシステムを接続する（亀・エイの摂餌に使用）
+   */
+  public setFeedingManager(feeding: FeedingManager): void {
+    this.feedingManager = feeding;
+  }
+
+  public update(delta: number, elapsed: number): void {
     for (const instance of this.instances) {
       const type = instance.animation?.type;
       if (type === 'sway') {
@@ -351,23 +372,168 @@ export class DecorationManager {
           wheel.rotation.z = elapsed * (instance.animation!.speed ?? 1.0);
         }
       } else if (type === 'turtle') {
-        this.animateDrift(instance, elapsed);
+        this.animateRoam(instance, delta, elapsed);
         TurtleGenerator.updateSwim(instance.mesh, elapsed);
       } else if (type === 'ray') {
-        this.animateDrift(instance, elapsed);
+        this.animateRoam(instance, delta, elapsed);
         RayGenerator.updateSwim(instance.mesh, elapsed, instance.animation!.speed ?? 1.0);
       }
     }
   }
 
   /**
-   * 水中生物のゆったりした浮遊（上下のbobと緩やかな首振り）
+   * 回遊する生物（亀・エイ）のゆったりした遊泳。
+   *
+   * 前進しながら緩やかに蛇行し、壁際では中央へ向き直る。
+   * クリック反応中(reactionTimer>0)は逃避方向へ素早く向き直り加速する。
+   * 上下のbobと軽いロールで生き物らしい揺れも加える。
    */
-  private animateDrift(instance: DecorationInstance, time: number): void {
-    const ph = instance.position.x * 0.2 + instance.position.z * 0.13;
-    instance.mesh.position.y = instance.position.y + Math.sin(time * 0.5 + ph) * 1.5;
-    instance.mesh.rotation.y = instance.rotation.y + Math.sin(time * 0.18 + ph) * 0.3;
-    instance.mesh.rotation.z = instance.rotation.z + Math.sin(time * 0.32 + ph) * 0.08;
+  private animateRoam(instance: DecorationInstance, delta: number, time: number): void {
+    if (!instance.roamDir) return;
+
+    const dir = instance.roamDir;
+    const pos = instance.position;
+    const ph = pos.x * 0.2 + pos.z * 0.13;
+
+    // 満腹タイマーを進める（>0 の間は餌に反応しない）
+    if (instance.satietyTimer && instance.satietyTimer > 0) {
+      instance.satietyTimer -= delta;
+    }
+
+    // 反応中・満腹中でなければ最寄りの餌を探す
+    const reacting = !!(instance.reactionTimer && instance.reactionTimer > 0);
+    const foodTarget =
+      reacting ? null : this.findNearestFoodForRoam(instance);
+
+    // 目標方向を決める
+    const desired = dir.clone();
+    let speed = instance.roamSpeed ?? 4.5;
+    let turnRate = 0.8; // 通常時の旋回の機敏さ(1/sec)
+
+    if (reacting && instance.reactionDir) {
+      // クリック反応：逃避方向へ素早く向き直り加速
+      instance.reactionTimer! -= delta;
+      desired.copy(instance.reactionDir);
+      speed *= 2.4;
+      turnRate = 3.5;
+    } else if (foodTarget) {
+      // 摂餌：餌の方へ向き直って泳ぐ（蛇行より優先）
+      desired.copy(foodTarget.position).sub(pos);
+      speed *= 1.4;
+      turnRate = 1.6;
+    } else {
+      // 緩やかな蛇行（時間と個体位相でゆっくり旋回）
+      const wander = Math.sin(time * 0.2 + ph) * 0.6;
+      this.rotateY(desired, wander * delta);
+    }
+
+    // 壁際では中央へ向き直る（反応中でも安全のため適用）
+    const margin = 14;
+    const b = this.tankBounds;
+    const center = b.getCenter(new THREE.Vector3());
+    let nearWall = false;
+    if (
+      pos.x < b.min.x + margin || pos.x > b.max.x - margin ||
+      pos.z < b.min.z + margin || pos.z > b.max.z - margin
+    ) {
+      nearWall = true;
+    }
+    if (nearWall) {
+      const toCenter = new THREE.Vector3(center.x - pos.x, 0, center.z - pos.z).normalize();
+      desired.lerp(toCenter, 0.6);
+    }
+
+    // 現在の向きを目標へ補間（水平を保つ）
+    desired.y = 0;
+    if (desired.lengthSq() > 1e-6) {
+      desired.normalize();
+      dir.lerp(desired, Math.min(1, turnRate * delta)).normalize();
+    }
+
+    // 前進
+    pos.x += dir.x * speed * delta;
+    pos.z += dir.z * speed * delta;
+    // 念のため水槽内にクランプ
+    pos.x = Math.max(b.min.x + 2, Math.min(b.max.x - 2, pos.x));
+    pos.z = Math.max(b.min.z + 2, Math.min(b.max.z - 2, pos.z));
+
+    // 摂餌：口先（頭=+X前方、約5×scale先）が餌に届いたら食べる
+    if (foodTarget && this.feedingManager) {
+      const mouth = new THREE.Vector3(
+        pos.x + dir.x * 5 * instance.scale,
+        pos.y,
+        pos.z + dir.z * 5 * instance.scale
+      );
+      if (mouth.distanceTo(foodTarget.position) < 3 * instance.scale + 1) {
+        this.feedingManager.consume(foodTarget);
+        instance.satietyTimer = 60; // 食べたら一定時間お腹いっぱい
+      }
+    }
+
+    // メッシュへ反映（bob と軽いロールを付加）
+    instance.mesh.position.set(
+      pos.x,
+      pos.y + Math.sin(time * 0.5 + ph) * 1.2,
+      pos.z
+    );
+    instance.mesh.rotation.y = Math.atan2(-dir.z, dir.x);
+    instance.mesh.rotation.z = instance.rotation.z + Math.sin(time * 0.32 + ph) * 0.06;
+  }
+
+  /**
+   * 回遊個体から知覚範囲内の最寄りの餌を探す（満腹中・餌なしは null）
+   */
+  private findNearestFoodForRoam(instance: DecorationInstance) {
+    if (!this.feedingManager) return null;
+    if (instance.satietyTimer && instance.satietyTimer > 0) return null;
+
+    const pellets = this.feedingManager.getPellets();
+    if (pellets.length === 0) return null;
+
+    // 体が大きいので広めの範囲で気づく
+    const feedRadius = 45;
+    let best = null;
+    let bestDist = feedRadius;
+    for (const pellet of pellets) {
+      const d = instance.position.distanceTo(pellet.position);
+      if (d < bestDist) {
+        bestDist = d;
+        best = pellet;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * ベクトルをY軸まわりに回転（水平面の旋回用）
+   */
+  private rotateY(v: THREE.Vector3, angle: number): void {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const x = v.x * c + v.z * s;
+    const z = -v.x * s + v.z * c;
+    v.x = x;
+    v.z = z;
+  }
+
+  /**
+   * クリック反応できる装飾か（回遊する生物のみ）
+   */
+  public canReact(instance: DecorationInstance): boolean {
+    return !!instance.roamDir;
+  }
+
+  /**
+   * クリック反応：驚いて逆方向へ逃げる
+   */
+  public triggerReaction(instance: DecorationInstance, duration: number = 2.0): void {
+    if (!instance.roamDir) return;
+    // 現在の進行方向の逆＋わずかにランダムに逸らす
+    const away = instance.roamDir.clone().multiplyScalar(-1);
+    this.rotateY(away, (Math.random() - 0.5) * 1.0);
+    away.y = 0;
+    instance.reactionDir = away.normalize();
+    instance.reactionTimer = duration;
   }
 
   /**

@@ -1,9 +1,16 @@
 import * as THREE from 'three';
 import { CreatureInstance, BehaviorParams, DEFAULT_BEHAVIOR } from '../types/creatures';
 import { clampMagnitude, randomInSphere, headingToQuaternion } from '../utils/math';
+import { FoodPellet } from './FeedingManager';
 
 interface SpatialCell {
   creatures: CreatureInstance[];
+}
+
+/** 魚AIへ渡す餌情報（最寄りの餌を探し、食べたら消費する） */
+export interface FeedingContext {
+  pellets: FoodPellet[];
+  consume(pellet: FoodPellet): void;
 }
 
 /** 魚モデルの前方（頭）はローカル -X 軸 */
@@ -31,13 +38,17 @@ export class BoidsBehavior {
   /**
    * すべての生き物を更新
    */
-  public update(creatures: CreatureInstance[], delta: number): void {
+  public update(
+    creatures: CreatureInstance[],
+    delta: number,
+    feeding?: FeedingContext
+  ): void {
     // 空間分割グリッドを再構築
     this.rebuildSpatialGrid(creatures);
 
     // 各個体の力を計算し速度・位置を更新
     for (const creature of creatures) {
-      this.updateCreature(creature, delta);
+      this.updateCreature(creature, delta, feeding);
     }
 
     // ハードコリジョン解決（重なりが残っている場合に強制的に押し出す）
@@ -147,9 +158,21 @@ export class BoidsBehavior {
   /**
    * 個体を更新
    */
-  private updateCreature(creature: CreatureInstance, delta: number): void {
+  private updateCreature(
+    creature: CreatureInstance,
+    delta: number,
+    feeding?: FeedingContext
+  ): void {
     const params = creature.behaviorParams;
     const collisionRadius = this.getCollisionRadius(creature);
+
+    // 満腹タイマーを進める（>0 の間は餌に反応しない）
+    if (creature.satietyTimer !== undefined && creature.satietyTimer > 0) {
+      creature.satietyTimer -= delta;
+    }
+
+    // 摂餌：知覚範囲内で最寄りの餌を探す（満腹中は探さない）
+    const foodTarget = this.findNearestFood(creature, feeding);
 
     // 群泳用近傍（同種のみ）
     const flockNeighbors = this.getFlockNeighbors(creature, params.perceptionRadius);
@@ -175,6 +198,12 @@ export class BoidsBehavior {
       .add(cohesion.multiplyScalar(params.cohesionWeight))
       .add(boundary.multiplyScalar(2.0))
       .add(wander);
+
+    // 摂餌：餌があれば最寄りの餌へ強く誘導（徘徊などより優先される）
+    if (foodTarget) {
+      const toFood = foodTarget.position.clone().sub(creature.position).normalize();
+      acceleration.add(toFood.multiplyScalar(params.maxSpeed * 6));
+    }
 
     // --- ステアリング（操舵）---
     // Boids 力からは「行きたい速度（desired）」だけを求める。
@@ -217,6 +246,16 @@ export class BoidsBehavior {
 
     // 位置を更新
     creature.position.add(creature.velocity.clone().multiplyScalar(delta));
+
+    // 摂餌：口先（頭=forward方向）が餌に届いたら食べる
+    if (foodTarget && feeding) {
+      const mouth = creature.position.clone().addScaledVector(forward, creature.size * 1.2);
+      if (mouth.distanceTo(foodTarget.position) < creature.size * 0.9) {
+        feeding.consume(foodTarget);
+        // 食べたら一定時間お腹いっぱい（餌に反応しなくなる）
+        creature.satietyTimer = 60;
+      }
+    }
 
     // メッシュを更新
     creature.mesh.position.copy(creature.position);
@@ -340,6 +379,33 @@ export class BoidsBehavior {
    */
   private calculateWander(params: BehaviorParams): THREE.Vector3 {
     return randomInSphere(params.wanderStrength);
+  }
+
+  /**
+   * 知覚範囲内で最寄りの餌を探す（なければ null）
+   */
+  private findNearestFood(
+    creature: CreatureInstance,
+    feeding?: FeedingContext
+  ): FoodPellet | null {
+    if (!feeding || feeding.pellets.length === 0) return null;
+
+    // 満腹中は餌に気づかない
+    if (creature.satietyTimer !== undefined && creature.satietyTimer > 0) return null;
+
+    // 餌は通常の知覚より広めに気づく
+    const feedRadius = creature.behaviorParams.perceptionRadius * 1.6;
+    let best: FoodPellet | null = null;
+    let bestDist = feedRadius;
+
+    for (const pellet of feeding.pellets) {
+      const d = creature.position.distanceTo(pellet.position);
+      if (d < bestDist) {
+        bestDist = d;
+        best = pellet;
+      }
+    }
+    return best;
   }
 
   /**
