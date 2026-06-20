@@ -49,6 +49,23 @@ export class BoidsBehavior {
     // 捕食者（サメなど）を抽出（少数前提なので毎フレーム線形探索で十分）
     const predators = creatures.filter((c) => c.isPredator);
 
+    // 各捕食者の狙う獲物（最寄りのネオンテトラ）を決める
+    if (predators.length > 0) {
+      const prey = creatures.filter((c) => c.definitionId === 'neontetra');
+      for (const pred of predators) {
+        let best: CreatureInstance | null = null;
+        let bestD = Infinity;
+        for (const t of prey) {
+          const d = pred.position.distanceToSquared(t.position);
+          if (d < bestD) {
+            bestD = d;
+            best = t;
+          }
+        }
+        pred.huntTarget = best ? best.position : undefined;
+      }
+    }
+
     // 各個体の力を計算し速度・位置を更新
     for (const creature of creatures) {
       this.updateCreature(creature, delta, feeding, predators);
@@ -206,6 +223,14 @@ export class BoidsBehavior {
       .add(cohesion.multiplyScalar(params.cohesionWeight))
       .add(boundary.multiplyScalar(2.0))
       .add(wander);
+
+    // 捕食者：最寄りのネオンテトラへ向かう（獲物を追う・徘徊より優先）
+    if (creature.isPredator && creature.huntTarget) {
+      const toPrey = creature.huntTarget.clone().sub(creature.position);
+      if (toPrey.lengthSq() > 1e-6) {
+        acceleration.add(toPrey.normalize().multiplyScalar(params.maxSpeed * 4));
+      }
+    }
 
     if (isFleeing) {
       // 逃避中：捕食者から離れる方向を最優先（摂餌・徘徊より強い）

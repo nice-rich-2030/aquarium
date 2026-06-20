@@ -79,6 +79,8 @@ export interface CreatureInstance {
   satietyTimer?: number;
   // 捕食者（サメなど）。他の魚はこの個体から逃げる
   isPredator?: boolean;
+  // 捕食者が狙う獲物の位置（最寄りのネオンテトラ）。毎フレーム更新される
+  huntTarget?: THREE.Vector3;
 }
 
 // 生き物スポーン設定
