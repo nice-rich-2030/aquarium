@@ -2,7 +2,7 @@ import { AquariumScene, AquariumRenderer, AquariumCamera, AnimationLoop, PostPro
 import { Tank, Lighting, Particles } from './environment';
 import { CreatureManager } from './creatures';
 import { DecorationManager } from './decorations';
-import { SettingsPanel } from './ui';
+import { SettingsPanel, CreatureInteraction } from './ui';
 import {
   DEFAULT_TANK_CONFIG,
   DEFAULT_LIGHTING_CONFIG,
@@ -27,6 +27,7 @@ class DigitalAquarium {
   private creatureManager: CreatureManager;
   private decorationManager: DecorationManager;
   private settingsPanel: SettingsPanel;
+  private creatureInteraction: CreatureInteraction;
 
   constructor(container: HTMLElement) {
     // コアシステム初期化
@@ -89,6 +90,14 @@ class DigitalAquarium {
       decorationManager: this.decorationManager,
       lighting: this.lighting,
     });
+
+    // 生き物へのマウス操作（ホバー情報・クリックで反転）
+    this.creatureInteraction = new CreatureInteraction(
+      this.renderer.getDomElement(),
+      this.camera.getCamera(),
+      this.creatureManager,
+      this.decorationManager
+    );
 
     // ループを設定
     this.setupLoop();
@@ -205,6 +214,7 @@ class DigitalAquarium {
     this.loop.dispose();
     this.postProcessing.dispose();
     this.settingsPanel.dispose();
+    this.creatureInteraction.dispose();
     this.creatureManager.dispose();
     this.decorationManager.dispose();
     this.particles.dispose();

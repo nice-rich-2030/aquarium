@@ -80,6 +80,7 @@ export interface DecorationAnimationParams {
 export interface DecorationDefinition {
   id: string;
   name: string;
+  description?: string; // ツールチップに表示する一言の特徴
   category: DecorationCategory;
   generatorType: string;
   params: GeneratorParams;

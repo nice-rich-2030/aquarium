@@ -8,13 +8,14 @@ import {
 } from '../types/creatures';
 import { FishGenerator } from './FishGenerator';
 import { BoidsBehavior } from './BoidsBehavior';
-import { randomInBox, randomRange } from '../utils/math';
+import { randomInBox, randomRange, headingToQuaternion } from '../utils/math';
 
 // デフォルトの生き物定義
 const DEFAULT_CREATURES: CreatureDefinition[] = [
   {
     id: 'clownfish',
     name: 'カクレクマノミ',
+    description: 'イソギンチャクと共生する、オレンジに白縞の人気者',
     category: 'fish',
     size: { min: 1.5, max: 2.5 },
     colors: { primary: '#ff6600', secondary: '#ffffff', pattern: 'stripe', stripeCount: 3 },
@@ -26,6 +27,7 @@ const DEFAULT_CREATURES: CreatureDefinition[] = [
   {
     id: 'neontetra',
     name: 'ネオンテトラ',
+    description: '青く輝く体で群れて泳ぐ、小さな熱帯魚',
     category: 'fish',
     size: { min: 0.8, max: 1.2 },
     colors: { primary: '#0088ff', secondary: '#ff3333', pattern: 'gradient' },
@@ -37,6 +39,7 @@ const DEFAULT_CREATURES: CreatureDefinition[] = [
   {
     id: 'angelfish',
     name: 'エンゼルフィッシュ',
+    description: '長いひれをなびかせ、優雅に泳ぐ三角形の魚',
     category: 'fish',
     size: { min: 2, max: 3.5 },
     colors: { primary: '#c0c0c0', secondary: '#333333', pattern: 'stripe', stripeCount: 5 },
@@ -48,6 +51,7 @@ const DEFAULT_CREATURES: CreatureDefinition[] = [
   {
     id: 'goldfish',
     name: '金魚',
+    description: '丸いからだでゆったり泳ぐ、お祭りでおなじみの魚',
     category: 'fish',
     size: { min: 2, max: 4 },
     colors: { primary: '#ff8800', secondary: '#ffcc00', pattern: 'gradient' },
@@ -59,6 +63,7 @@ const DEFAULT_CREATURES: CreatureDefinition[] = [
   {
     id: 'guppy',
     name: 'グッピー',
+    description: 'カラフルな尾びれが自慢の、小さな卵胎生魚',
     category: 'fish',
     size: { min: 0.6, max: 1.0 },
     colors: { primary: '#00ccff', secondary: '#ff00ff', accent: '#ffff00', pattern: 'gradient' },
@@ -155,10 +160,8 @@ export class CreatureManager {
       (Math.random() - 0.5) * 2
     ).normalize().multiplyScalar(definition.behavior.maxSpeed * 0.5);
 
-    const rotation = new THREE.Quaternion();
-    const matrix = new THREE.Matrix4();
-    matrix.lookAt(new THREE.Vector3(), velocity.clone().normalize(), new THREE.Vector3(0, 1, 0));
-    rotation.setFromRotationMatrix(matrix);
+    // 頭（ローカル -X）が進行方向を向くよう初期姿勢を設定
+    const rotation = headingToQuaternion(velocity);
 
     mesh.position.copy(position);
     mesh.quaternion.copy(rotation);
@@ -314,6 +317,49 @@ export class CreatureManager {
    */
   public getGroup(): THREE.Group {
     return this.group;
+  }
+
+  /**
+   * レイキャストでヒットしたオブジェクトから個体を逆引きする。
+   *
+   * 各個体のメッシュは Group で、その子（body/fins/...）がヒットする。
+   * ヒットしたオブジェクトの祖先をたどり、グループ直下の個体メッシュに対応づける。
+   */
+  public findInstanceByObject(object: THREE.Object3D): CreatureInstance | null {
+    let node: THREE.Object3D | null = object;
+    while (node) {
+      if (node.parent === this.group) {
+        return this.instances.find((i) => i.mesh === node) || null;
+      }
+      node = node.parent;
+    }
+    return null;
+  }
+
+  /**
+   * 個体の表示情報を取得（ツールチップ用）
+   */
+  public getDisplayInfo(instance: CreatureInstance): {
+    name: string;
+    description: string;
+  } {
+    const def = this.definitions.get(instance.definitionId);
+    return {
+      name: def?.name ?? instance.definitionId,
+      description: def?.description ?? '',
+    };
+  }
+
+  /**
+   * 反転アクションを発動する。
+   *
+   * 現在の頭の向きの逆方向を一定時間の目標に設定し、その場でUターンさせる。
+   */
+  public triggerFlip(instance: CreatureInstance, duration: number = 1.0): void {
+    // 現在頭が向いている方向（ローカル -X をワールドへ）
+    const forward = new THREE.Vector3(-1, 0, 0).applyQuaternion(instance.rotation);
+    instance.flipDir = forward.negate().normalize();
+    instance.flipTimer = duration;
   }
 
   /**

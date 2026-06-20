@@ -27,6 +27,7 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   {
     id: 'rock-large',
     name: '大きな岩',
+    description: '景の中心となる、どっしりした自然石',
     category: 'rock',
     generatorType: 'rock',
     params: { ...DEFAULT_ROCK_PARAMS, baseRadius: 5 },
@@ -34,6 +35,7 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   {
     id: 'rock-medium',
     name: '中くらいの岩',
+    description: '石組みを支える、ほどよい大きさの石',
     category: 'rock',
     generatorType: 'rock',
     params: { ...DEFAULT_ROCK_PARAMS, baseRadius: 3 },
@@ -41,6 +43,7 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   {
     id: 'rock-small',
     name: '小さな岩',
+    description: '州浜を彩る、ごつごつした玉石',
     category: 'rock',
     generatorType: 'rock',
     params: { ...DEFAULT_ROCK_PARAMS, baseRadius: 1.5 },
@@ -48,6 +51,7 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   {
     id: 'seagrass',
     name: '海草',
+    description: '水流にゆらゆらと揺れる、やわらかな水草',
     category: 'plant',
     generatorType: 'plant',
     params: {
@@ -63,6 +67,7 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   {
     id: 'tall-grass',
     name: '背の高い草',
+    description: '水中で大きくしなる、背の高い水草',
     category: 'plant',
     generatorType: 'plant',
     params: {
@@ -79,6 +84,7 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   {
     id: 'moss-ball',
     name: 'マリモ',
+    description: 'まんまるに育つ、緑の藻のかたまり',
     category: 'plant',
     generatorType: 'moss',
     params: { ...DEFAULT_PLANT_PARAMS, stemCount: 0 },
@@ -86,6 +92,7 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   {
     id: 'waterwheel',
     name: '水車',
+    description: 'のんびりと回り続ける、木製の水車',
     category: 'other',
     generatorType: 'waterwheel',
     params: { ...DEFAULT_WATERWHEEL_PARAMS },
@@ -94,6 +101,7 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   {
     id: 'sea-turtle',
     name: 'ウミガメ',
+    description: 'ひれをゆったり動かして泳ぐ、長寿の海亀',
     category: 'other',
     generatorType: 'turtle',
     params: { ...DEFAULT_TURTLE_PARAMS },
@@ -102,6 +110,7 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   {
     id: 'stingray',
     name: 'エイ',
+    description: 'ひれを波打たせ、滑空するように泳ぐ',
     category: 'other',
     generatorType: 'ray',
     params: { ...DEFAULT_RAY_PARAMS },
@@ -109,37 +118,45 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   },
   // 珊瑚（色のアクセント・4色）
   {
-    id: 'coral-pink', name: '珊瑚（桃）', category: 'coral', generatorType: 'coral',
+    id: 'coral-pink', name: '珊瑚（桃）', description: '枝分かれしながら育つ、樹状の造礁サンゴ',
+    category: 'coral', generatorType: 'coral',
     params: { ...DEFAULT_CORAL_PARAMS, color: '#ff6b9d', branchDepth: 3, length: 2.0, thickness: 0.4 },
   },
   {
-    id: 'coral-orange', name: '珊瑚（橙）', category: 'coral', generatorType: 'coral',
+    id: 'coral-orange', name: '珊瑚（橙）', description: '枝分かれしながら育つ、樹状の造礁サンゴ',
+    category: 'coral', generatorType: 'coral',
     params: { ...DEFAULT_CORAL_PARAMS, color: '#ff9d4d', branchDepth: 3, length: 2.0, thickness: 0.4 },
   },
   {
-    id: 'coral-purple', name: '珊瑚（紫）', category: 'coral', generatorType: 'coral',
+    id: 'coral-purple', name: '珊瑚（紫）', description: '枝分かれしながら育つ、樹状の造礁サンゴ',
+    category: 'coral', generatorType: 'coral',
     params: { ...DEFAULT_CORAL_PARAMS, color: '#b06bff', branchDepth: 3, length: 2.0, thickness: 0.4 },
   },
   {
-    id: 'coral-yellow', name: '珊瑚（黄）', category: 'coral', generatorType: 'coral',
+    id: 'coral-yellow', name: '珊瑚（黄）', description: '枝分かれしながら育つ、樹状の造礁サンゴ',
+    category: 'coral', generatorType: 'coral',
     params: { ...DEFAULT_CORAL_PARAMS, color: '#ffd24d', branchDepth: 3, length: 2.0, thickness: 0.4 },
   },
   // テーブルサンゴ（傘状に広がるミドリイシ風）
   {
-    id: 'coral-table-orange', name: 'テーブル珊瑚（橙）', category: 'coral', generatorType: 'coral',
+    id: 'coral-table-orange', name: 'テーブル珊瑚（橙）', description: '傘のように平たく広がるミドリイシの仲間',
+    category: 'coral', generatorType: 'coral',
     params: { ...DEFAULT_CORAL_PARAMS, shape: 'table', color: '#ffae5c', length: 1.7, thickness: 0.4 },
   },
   {
-    id: 'coral-table-purple', name: 'テーブル珊瑚（紫）', category: 'coral', generatorType: 'coral',
+    id: 'coral-table-purple', name: 'テーブル珊瑚（紫）', description: '傘のように平たく広がるミドリイシの仲間',
+    category: 'coral', generatorType: 'coral',
     params: { ...DEFAULT_CORAL_PARAMS, shape: 'table', color: '#a987ff', length: 1.7, thickness: 0.4 },
   },
   // 脳サンゴ（塊状・溝模様のハマサンゴ／ノウサンゴ風）
   {
-    id: 'coral-brain-pink', name: '脳珊瑚（桃）', category: 'coral', generatorType: 'coral',
+    id: 'coral-brain-pink', name: '脳珊瑚（桃）', description: '脳のような溝模様をもつ、塊状のサンゴ',
+    category: 'coral', generatorType: 'coral',
     params: { ...DEFAULT_CORAL_PARAMS, shape: 'brain', color: '#ff8fab', thickness: 0.5 },
   },
   {
-    id: 'coral-brain-green', name: '脳珊瑚（緑）', category: 'coral', generatorType: 'coral',
+    id: 'coral-brain-green', name: '脳珊瑚（緑）', description: '脳のような溝模様をもつ、塊状のサンゴ',
+    category: 'coral', generatorType: 'coral',
     params: { ...DEFAULT_CORAL_PARAMS, shape: 'brain', color: '#7fc7a3', thickness: 0.5 },
   },
 ];
@@ -548,6 +565,34 @@ export class DecorationManager {
    */
   public getGroup(): THREE.Group {
     return this.group;
+  }
+
+  /**
+   * レイキャストでヒットしたオブジェクトから装飾個体を逆引きする。
+   */
+  public findInstanceByObject(object: THREE.Object3D): DecorationInstance | null {
+    let node: THREE.Object3D | null = object;
+    while (node) {
+      if (node.parent === this.group) {
+        return this.instances.find((i) => i.mesh === node) || null;
+      }
+      node = node.parent;
+    }
+    return null;
+  }
+
+  /**
+   * 装飾の表示情報を取得（ツールチップ用）
+   */
+  public getDisplayInfo(instance: DecorationInstance): {
+    name: string;
+    description: string;
+  } {
+    const def = this.definitions.get(instance.definitionId);
+    return {
+      name: def?.name ?? instance.definitionId,
+      description: def?.description ?? '',
+    };
   }
 
   /**

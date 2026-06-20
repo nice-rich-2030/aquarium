@@ -120,11 +120,28 @@ export function slerpQuaternion(
 }
 
 /**
- * 方向ベクトルからクォータニオンを作成
+ * 進行方向から魚の姿勢クォータニオンを作成する。
+ *
+ * 魚モデルは頭部がローカル -X 方向を向いて生成される（口・目が -X、尾が +X）。
+ * Three.js の Matrix4.lookAt は -Z を対象へ向ける仕様のため、そのまま使うと
+ * 魚が体側（横）を進行方向に向けて泳いでしまう。
+ * ここでは頭（-X）が direction を向き、かつ背（+Y）が概ね上を向くような
+ * 正規直交基底を組んで姿勢を決める。
  */
-export function lookAtQuaternion(direction: THREE.Vector3): THREE.Quaternion {
-  const up = new THREE.Vector3(0, 1, 0);
-  const matrix = new THREE.Matrix4();
-  matrix.lookAt(new THREE.Vector3(), direction, up);
+export function headingToQuaternion(direction: THREE.Vector3): THREE.Quaternion {
+  const fwd = direction.clone().normalize();
+  // ローカル +X のワールド方向（頭が -X なので +X は後方を指す）
+  const xAxis = fwd.clone().multiplyScalar(-1);
+  const worldUp = new THREE.Vector3(0, 1, 0);
+
+  let zAxis = new THREE.Vector3().crossVectors(xAxis, worldUp);
+  if (zAxis.lengthSq() < 1e-6) {
+    // 真上・真下を向く場合は別の基準軸で代用してロール不定を避ける
+    zAxis = new THREE.Vector3().crossVectors(xAxis, new THREE.Vector3(0, 0, 1));
+  }
+  zAxis.normalize();
+  const yAxis = new THREE.Vector3().crossVectors(zAxis, xAxis).normalize();
+
+  const matrix = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
   return new THREE.Quaternion().setFromRotationMatrix(matrix);
 }

@@ -48,6 +48,7 @@ export interface AnimationParams {
 export interface CreatureDefinition {
   id: string;
   name: string;
+  description?: string; // ツールチップに表示する一言の特徴
   category: 'fish' | 'crustacean' | 'other';
   size: { min: number; max: number };
   colors: ColorPalette;
@@ -69,6 +70,9 @@ export interface CreatureInstance {
   swimPhase: number;
   behaviorParams: BehaviorParams;
   animationParams: AnimationParams;
+  // クリックで誘発される反転アクションの残り時間(秒)と目標方向（任意）
+  flipTimer?: number;
+  flipDir?: THREE.Vector3;
 }
 
 // 生き物スポーン設定

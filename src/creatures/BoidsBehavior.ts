@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { CreatureInstance, BehaviorParams, DEFAULT_BEHAVIOR } from '../types/creatures';
-import { clampMagnitude, randomInSphere } from '../utils/math';
+import { clampMagnitude, randomInSphere, headingToQuaternion } from '../utils/math';
 
 interface SpatialCell {
   creatures: CreatureInstance[];
 }
+
+/** 魚モデルの前方（頭）はローカル -X 軸 */
+const FISH_FORWARD = new THREE.Vector3(-1, 0, 0);
 
 /**
  * Boidsアルゴリズムによる群泳AI
@@ -173,26 +176,47 @@ export class BoidsBehavior {
       .add(boundary.multiplyScalar(2.0))
       .add(wander);
 
-    // 速度を更新
-    creature.velocity.add(acceleration.multiplyScalar(delta));
-    creature.velocity = clampMagnitude(creature.velocity, params.maxSpeed);
+    // --- ステアリング（操舵）---
+    // Boids 力からは「行きたい速度（desired）」だけを求める。
+    // 実際の移動は常に頭の向きへ行うことで、向きと進行方向を一致させる。
+    const desiredVelocity = creature.velocity.clone().add(acceleration.multiplyScalar(delta));
+    let clampedDesired = clampMagnitude(desiredVelocity, params.maxSpeed);
+
+    // クリックで誘発された反転アクション：
+    // 一定時間、逆方向を目標として上書きする。頭が向き変えしてから泳ぎ出す
+    // 新しい移動モデルにより、自然な「Uターン」として見える。
+    if (creature.flipTimer !== undefined && creature.flipTimer > 0) {
+      creature.flipTimer -= delta;
+      const dir = creature.flipDir ?? FISH_FORWARD;
+      clampedDesired = dir.clone().multiplyScalar(params.maxSpeed);
+    }
+
+    const desiredSpeed = clampedDesired.length();
+
+    // 頭を目標方向へゆっくり旋回（速度方向ではなく頭で進む）
+    if (desiredSpeed > 0.001) {
+      const desiredDir = clampedDesired.clone().divideScalar(desiredSpeed);
+      const targetRotation = headingToQuaternion(desiredDir);
+      creature.rotation.slerp(targetRotation, Math.min(1, params.turnSpeed * delta));
+    }
+
+    // 現在頭が向いている方向（ローカル -X をワールドへ変換）
+    const forward = FISH_FORWARD.clone().applyQuaternion(creature.rotation);
+
+    // 頭と目標方向のズレに応じて減速：
+    // 旋回中・反転中は遅く（頭を向けてから進む）、向きが整うと加速する。
+    const headingDot =
+      desiredSpeed > 0.001
+        ? forward.dot(clampedDesired) / desiredSpeed
+        : 1;
+    const headingFactor = Math.max(0, Math.min(1, headingDot));
+    const speed = desiredSpeed * (0.15 + 0.85 * headingFactor);
+
+    // 速度は必ず頭の向きに沿わせる → 向きと進行方向が常に一致
+    creature.velocity.copy(forward).multiplyScalar(speed);
 
     // 位置を更新
     creature.position.add(creature.velocity.clone().multiplyScalar(delta));
-
-    // 向きを速度方向に補間
-    if (creature.velocity.length() > 0.1) {
-      const targetRotation = new THREE.Quaternion();
-      const matrix = new THREE.Matrix4();
-      matrix.lookAt(
-        new THREE.Vector3(),
-        creature.velocity.clone().normalize(),
-        new THREE.Vector3(0, 1, 0)
-      );
-      targetRotation.setFromRotationMatrix(matrix);
-
-      creature.rotation.slerp(targetRotation, params.turnSpeed * delta);
-    }
 
     // メッシュを更新
     creature.mesh.position.copy(creature.position);
