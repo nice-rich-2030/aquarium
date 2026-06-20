@@ -55,9 +55,10 @@ export interface WaterWheelParams {
   hubColor: string;     // 軸の色
 }
 
-// 水中生物（亀・エイ）の生成パラメータ
+// 水中生物（亀・エイ・ウツボ・ヒトデ）の生成パラメータ
 export interface CreatureModelParams {
   size: number; // 全体スケール
+  color?: string; // 体色（ヒトデなどで使用）
 }
 
 // ジェネレータパラメータ（共用体）
@@ -71,7 +72,7 @@ export type GeneratorParams =
 
 // アニメーションパラメータ（揺れ・回転・遊泳など）
 export interface DecorationAnimationParams {
-  type: 'sway' | 'rotate' | 'turtle' | 'ray' | 'none';
+  type: 'sway' | 'rotate' | 'turtle' | 'ray' | 'moray' | 'anemone' | 'none';
   speed?: number;
   amount?: number;
 }

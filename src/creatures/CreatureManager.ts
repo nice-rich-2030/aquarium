@@ -279,6 +279,13 @@ export class CreatureManager {
   }
 
   /**
+   * 住処（イソギンチャク）の位置を設定（カクレクマノミの帰巣に使用）
+   */
+  public setShelters(positions: THREE.Vector3[]): void {
+    this.boidsBehavior.setShelters(positions);
+  }
+
+  /**
    * 毎フレーム更新
    */
   public update(delta: number, elapsed: number): void {

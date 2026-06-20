@@ -84,8 +84,11 @@ export class SharkGenerator {
     group.add(tailPivot);
 
     // --- 背鰭（第一・象徴的に高く後傾） ---
-    const dorsal = this.extrudeFin(this.dorsalShape(s), 0.08 * s, finMat);
-    dorsal.position.set(0.05 * s, halfH(0.05 * s) * 0.92, 0);
+    // 胴長(3.7s)の約20%だけ頭側へ前進させ、大きさは0.8倍
+    const dorsalX = -0.69 * s;
+    const dorsal = this.extrudeFin(this.dorsalShape(s, 0.8), 0.08 * s, finMat);
+    dorsal.position.set(dorsalX, halfH(dorsalX) * 0.92, 0);
+    dorsal.scale.y = 0.75; // 高さのみ3/4に（前後長・厚みは維持）
     group.add(dorsal);
 
     // 第二背鰭（小・尾寄り）

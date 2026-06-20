@@ -84,6 +84,9 @@ class DigitalAquarium {
     // デフォルトの装飾を配置
     this.decorationManager.placeDefaultDecorations();
 
+    // カクレクマノミの住処としてイソギンチャク位置を登録
+    this.creatureManager.setShelters(this.decorationManager.getShelterPositions());
+
     // ポストプロセス（ブルーム）を構築
     this.postProcessing = new PostProcessing(
       this.renderer.getRenderer(),
@@ -129,10 +132,11 @@ class DigitalAquarium {
       sizeScale: 1.3,
     });
 
-    // カクレクマノミ
+    // カクレクマノミ（0.8倍）
     this.creatureManager.spawn({
       definitionId: 'clownfish',
       count: 6,
+      sizeScale: 0.8,
     });
 
     // エンゼルフィッシュ

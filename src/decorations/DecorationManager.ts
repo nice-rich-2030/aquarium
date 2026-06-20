@@ -21,6 +21,9 @@ import { PlantGenerator } from './PlantGenerator';
 import { WaterWheelGenerator } from './WaterWheelGenerator';
 import { TurtleGenerator } from './TurtleGenerator';
 import { RayGenerator } from './RayGenerator';
+import { MorayGenerator } from './MorayGenerator';
+import { StarfishGenerator } from './StarfishGenerator';
+import { AnemoneGenerator } from './AnemoneGenerator';
 import { CoralGenerator } from './CoralGenerator';
 
 // デフォルトの装飾定義
@@ -116,6 +119,47 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
     generatorType: 'ray',
     params: { ...DEFAULT_RAY_PARAMS },
     animation: { type: 'ray', speed: 1.0 },
+  },
+  {
+    id: 'moray',
+    name: 'ウツボ',
+    description: '岩陰から顔を出して潜む。口を開閉しながら首を振る',
+    category: 'other',
+    generatorType: 'moray',
+    params: { size: 1.0 },
+    animation: { type: 'moray', speed: 1.0 },
+  },
+  {
+    id: 'starfish-orange', name: 'ヒトデ（橙）',
+    description: '砂の上でじっとしている五本腕の星形',
+    category: 'other', generatorType: 'starfish',
+    params: { size: 1.6, color: '#e8643c' },
+  },
+  {
+    id: 'starfish-red', name: 'ヒトデ（赤）',
+    description: '砂の上でじっとしている五本腕の星形',
+    category: 'other', generatorType: 'starfish',
+    params: { size: 1.4, color: '#d23b3b' },
+  },
+  {
+    id: 'starfish-purple', name: 'ヒトデ（紫）',
+    description: '砂の上でじっとしている五本腕の星形',
+    category: 'other', generatorType: 'starfish',
+    params: { size: 1.5, color: '#9b5bd6' },
+  },
+  {
+    id: 'anemone-pink', name: 'イソギンチャク（桃）',
+    description: '触手をゆらゆら揺らす。カクレクマノミの住処',
+    category: 'other', generatorType: 'anemone',
+    params: { size: 1.8, color: '#c25b86' },
+    animation: { type: 'anemone', speed: 1.0 },
+  },
+  {
+    id: 'anemone-orange', name: 'イソギンチャク（橙）',
+    description: '触手をゆらゆら揺らす。カクレクマノミの住処',
+    category: 'other', generatorType: 'anemone',
+    params: { size: 1.5, color: '#e08a3c' },
+    animation: { type: 'anemone', speed: 1.0 },
   },
   // 珊瑚（色のアクセント・4色）
   {
@@ -243,6 +287,15 @@ export class DecorationManager {
         break;
       case 'ray':
         mesh = RayGenerator.generate(definition.params as CreatureModelParams);
+        break;
+      case 'moray':
+        mesh = MorayGenerator.generate(definition.params as CreatureModelParams);
+        break;
+      case 'starfish':
+        mesh = StarfishGenerator.generate(definition.params as CreatureModelParams);
+        break;
+      case 'anemone':
+        mesh = AnemoneGenerator.generate(definition.params as CreatureModelParams);
         break;
       case 'coral':
         mesh = CoralGenerator.generate(definition.params as CoralParams);
@@ -377,6 +430,28 @@ export class DecorationManager {
       } else if (type === 'ray') {
         this.animateRoam(instance, delta, elapsed);
         RayGenerator.updateSwim(instance.mesh, elapsed, instance.animation!.speed ?? 1.0);
+      } else if (type === 'moray') {
+        // クリック反応中は巣穴へ引っ込む。
+        // 潜行(0→1を約0.5秒で見せる) → 待機 → 復帰(最後の1秒で1→0) の3段階。
+        let retract = 0;
+        if (instance.reactionTimer && instance.reactionTimer > 0) {
+          instance.reactionTimer -= delta;
+          const t = instance.reactionTimer; // 残り時間
+          const DUR = 2.5;
+          const DIVE = 0.5; // 潜る所要時間（この間の動きが見える）
+          const since = DUR - t;
+          const smooth = (k: number) => k * k * (3 - 2 * k);
+          if (since < DIVE) {
+            retract = smooth(since / DIVE); // 穴へ潜る動き
+          } else if (t > 1.0) {
+            retract = 1; // しばらく隠れる
+          } else {
+            retract = smooth(t / 1.0); // 最後の1秒で顔を出す
+          }
+        }
+        MorayGenerator.updateSwim(instance.mesh, elapsed, retract);
+      } else if (type === 'anemone') {
+        AnemoneGenerator.updateSway(instance.mesh, elapsed);
       }
     }
   }
@@ -517,23 +592,35 @@ export class DecorationManager {
   }
 
   /**
-   * クリック反応できる装飾か（回遊する生物のみ）
+   * クリック反応できる装飾か（回遊する亀・エイ、または巣穴のウツボ）
    */
   public canReact(instance: DecorationInstance): boolean {
-    return !!instance.roamDir;
+    if (instance.roamDir) return true;
+    const def = this.definitions.get(instance.definitionId);
+    return def?.generatorType === 'moray';
   }
 
   /**
-   * クリック反応：驚いて逆方向へ逃げる
+   * クリック反応：
+   * - 回遊個体（亀・エイ）は驚いて逆方向へ逃げる
+   * - ウツボは驚いて巣穴へ引っ込む
    */
   public triggerReaction(instance: DecorationInstance, duration: number = 2.0): void {
-    if (!instance.roamDir) return;
-    // 現在の進行方向の逆＋わずかにランダムに逸らす
-    const away = instance.roamDir.clone().multiplyScalar(-1);
-    this.rotateY(away, (Math.random() - 0.5) * 1.0);
-    away.y = 0;
-    instance.reactionDir = away.normalize();
-    instance.reactionTimer = duration;
+    if (instance.roamDir) {
+      // 現在の進行方向の逆＋わずかにランダムに逸らす
+      const away = instance.roamDir.clone().multiplyScalar(-1);
+      this.rotateY(away, (Math.random() - 0.5) * 1.0);
+      away.y = 0;
+      instance.reactionDir = away.normalize();
+      instance.reactionTimer = duration;
+      return;
+    }
+
+    const def = this.definitions.get(instance.definitionId);
+    if (def?.generatorType === 'moray') {
+      // 引っ込んで隠れ、しばらくして再び顔を出す
+      instance.reactionTimer = 2.5;
+    }
   }
 
   /**
@@ -624,6 +711,47 @@ export class DecorationManager {
       position: { x: -18, y: -3, z: -22 },
       rotation: { x: 0, y: 2.2, z: 0 },
       scale: 0.75,
+    });
+
+    // --- 砂地の生物 ---
+    // ウツボ（左奥の主石組のそばから顔を出す。顔が手前(カメラ側)へやや向く）
+    this.place({
+      definitionId: 'moray',
+      position: { x: -46, y: floorY, z: -12 },
+      rotation: { x: 0, y: -0.7, z: 0 },
+      scale: 1.2,
+    });
+
+    // ヒトデ（砂の上に3個）
+    this.place({
+      definitionId: 'starfish-orange',
+      position: { x: -16, y: floorY + 0.2, z: 26 },
+      rotation: { x: 0, y: Math.random() * Math.PI, z: 0 },
+      scale: 1.0,
+    });
+    this.place({
+      definitionId: 'starfish-red',
+      position: { x: 34, y: floorY + 0.2, z: -20 },
+      rotation: { x: 0, y: Math.random() * Math.PI, z: 0 },
+      scale: 0.9,
+    });
+    this.place({
+      definitionId: 'starfish-purple',
+      position: { x: 10, y: floorY + 0.2, z: 34 },
+      rotation: { x: 0, y: Math.random() * Math.PI, z: 0 },
+      scale: 0.95,
+    });
+
+    // イソギンチャク（カクレクマノミの住処。2株を近くに並べる）
+    this.place({
+      definitionId: 'anemone-pink',
+      position: { x: -6, y: floorY, z: 16 },
+      scale: 1.0,
+    });
+    this.place({
+      definitionId: 'anemone-orange',
+      position: { x: 8, y: floorY, z: 18 },
+      scale: 0.9,
     });
   }
 
@@ -732,6 +860,16 @@ export class DecorationManager {
    */
   public getGroup(): THREE.Group {
     return this.group;
+  }
+
+  /**
+   * 住処（イソギンチャク）の位置を返す。
+   * 触手の中ほどを狙えるよう少し上にオフセットする。
+   */
+  public getShelterPositions(): THREE.Vector3[] {
+    return this.instances
+      .filter((i) => this.definitions.get(i.definitionId)?.generatorType === 'anemone')
+      .map((i) => i.position.clone().add(new THREE.Vector3(0, 7, 0)));
   }
 
   /**

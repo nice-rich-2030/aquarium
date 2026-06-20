@@ -29,6 +29,7 @@ export class BoidsBehavior {
   private spatialGrid: Map<string, SpatialCell> = new Map();
   private cellSize: number;
   private boundaryMargin: number = 10;
+  private shelters: THREE.Vector3[] = []; // 住処（イソギンチャク）の位置
 
   constructor(tankBounds: THREE.Box3, cellSize?: number) {
     this.tankBounds = tankBounds;
@@ -74,6 +75,17 @@ export class BoidsBehavior {
     // ハードコリジョン解決（重なりが残っている場合に強制的に押し出す）
     this.rebuildSpatialGrid(creatures);
     this.resolveCollisions(creatures);
+
+    // 砂・壁へのめり込み防止：移動可能範囲へクランプ（最終安全網）。
+    // ソフトな境界回避力に強い力(帰巣・摂餌・逃避)が勝って範囲を割っても、
+    // ここで確実に水槽内へ戻すので、魚が砂に潜って消えることがなくなる。
+    const b = this.tankBounds;
+    for (const c of creatures) {
+      c.position.x = Math.max(b.min.x, Math.min(b.max.x, c.position.x));
+      c.position.y = Math.max(b.min.y, Math.min(b.max.y, c.position.y));
+      c.position.z = Math.max(b.min.z, Math.min(b.max.z, c.position.z));
+      c.mesh.position.copy(c.position);
+    }
   }
 
   /**
@@ -216,13 +228,17 @@ export class BoidsBehavior {
     const boundary = this.calculateBoundaryAvoidance(creature);
     const wander = this.calculateWander(params);
 
+    // 帰巣力（カクレクマノミが住処のイソギンチャクへ寄る）
+    const homing = this.calculateHoming(creature);
+
     // 力を合成（分離力の重みを大きく）
     const acceleration = new THREE.Vector3()
       .add(separation.multiplyScalar(params.separationWeight * 3.0))
       .add(alignment.multiplyScalar(params.alignmentWeight))
       .add(cohesion.multiplyScalar(params.cohesionWeight))
       .add(boundary.multiplyScalar(2.0))
-      .add(wander);
+      .add(wander)
+      .add(homing.multiplyScalar(params.maxSpeed * 2.5));
 
     // 捕食者：最寄りのネオンテトラへ向かう（獲物を追う・徘徊より優先）
     if (creature.isPredator && creature.huntTarget) {
@@ -519,5 +535,40 @@ export class BoidsBehavior {
    */
   public setTankBounds(bounds: THREE.Box3): void {
     this.tankBounds = bounds;
+  }
+
+  /**
+   * 住処（イソギンチャク）の位置を設定（カクレクマノミの帰巣に使用）
+   */
+  public setShelters(positions: THREE.Vector3[]): void {
+    this.shelters = positions;
+  }
+
+  /**
+   * 最寄りの住処への帰巣力（カクレクマノミ）。
+   * 住処から離れるほど強く引き戻し、近くでは自由に泳がせる。
+   */
+  private calculateHoming(creature: CreatureInstance): THREE.Vector3 {
+    const force = new THREE.Vector3();
+    if (creature.definitionId !== 'clownfish' || this.shelters.length === 0) return force;
+
+    let nearest = this.shelters[0];
+    let nd = Infinity;
+    for (const sh of this.shelters) {
+      const d = creature.position.distanceToSquared(sh);
+      if (d < nd) {
+        nd = d;
+        nearest = sh;
+      }
+    }
+
+    const toHome = nearest.clone().sub(creature.position);
+    const dist = toHome.length();
+    const homeRadius = 9; // この範囲内は自由
+    if (dist > homeRadius && dist > 0.001) {
+      const strength = Math.min(1, (dist - homeRadius) / 18);
+      force.copy(toHome).normalize().multiplyScalar(strength);
+    }
+    return force;
   }
 }

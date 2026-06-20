@@ -3,5 +3,8 @@ export { PlantGenerator } from './PlantGenerator';
 export { WaterWheelGenerator } from './WaterWheelGenerator';
 export { TurtleGenerator } from './TurtleGenerator';
 export { RayGenerator } from './RayGenerator';
+export { MorayGenerator } from './MorayGenerator';
+export { StarfishGenerator } from './StarfishGenerator';
+export { AnemoneGenerator } from './AnemoneGenerator';
 export { CoralGenerator } from './CoralGenerator';
 export { DecorationManager } from './DecorationManager';
