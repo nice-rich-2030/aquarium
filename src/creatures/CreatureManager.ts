@@ -156,7 +156,7 @@ export class CreatureManager {
     const spawnArea = config.spawnArea || this.getDefaultSpawnArea();
 
     for (let i = 0; i < config.count; i++) {
-      const instance = this.createInstance(definition, spawnArea);
+      const instance = this.createInstance(definition, spawnArea, config.sizeScale ?? 1);
       this.instances.push(instance);
       this.group.add(instance.mesh);
       spawnedInstances.push(instance);
@@ -170,9 +170,10 @@ export class CreatureManager {
    */
   private createInstance(
     definition: CreatureDefinition,
-    spawnArea: THREE.Box3
+    spawnArea: THREE.Box3,
+    sizeScale: number = 1
   ): CreatureInstance {
-    const size = randomRange(definition.size.min, definition.size.max);
+    const size = randomRange(definition.size.min, definition.size.max) * sizeScale;
 
     // メッシュを生成（サメは専用ジェネレーター）
     const mesh =
@@ -310,11 +311,10 @@ export class CreatureManager {
     const params = instance.animationParams;
     instance.swimPhase += delta * params.swimFrequency;
 
-    // サメは尾ピボットを左右に振って遊泳（速度が速いほど大きく振る）
-    if (instance.mesh.getObjectByName('tailPivot')) {
+    // サメは胴体を左右にしならせる進行波＋尾鰭で遊泳（速いほど大きくしなる）
+    if (instance.mesh.getObjectByName('bodyFront')) {
       const speedRatio = instance.velocity.length() / instance.behaviorParams.maxSpeed;
-      const amp = 0.12 + speedRatio * 0.22;
-      SharkGenerator.updateSwim(instance.mesh, instance.swimPhase, amp);
+      SharkGenerator.updateSwim(instance.mesh, instance.swimPhase, speedRatio);
       return;
     }
 

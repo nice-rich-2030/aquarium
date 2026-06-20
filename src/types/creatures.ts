@@ -86,6 +86,7 @@ export interface CreatureSpawnConfig {
   definitionId: string;
   count: number;
   spawnArea?: THREE.Box3;
+  sizeScale?: number; // 定義サイズに対する倍率（省略時は1.0）
 }
 
 // デフォルトの行動パラメータ

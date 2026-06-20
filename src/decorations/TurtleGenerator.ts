@@ -95,8 +95,9 @@ export class TurtleGenerator {
     const backFlipperScale = 0.65;
 
     const flipperSpecs: { name: string; x: number; z: number; rotY: number; scale: number }[] = [
-      { name: 'flipper-front-left',  x: rx * 0.55, z: rz * 0.7,  rotY: -0.5, scale: frontFlipperScale },
-      { name: 'flipper-front-right', x: rx * 0.55, z: -rz * 0.7, rotY: 0.5,  scale: frontFlipperScale },
+      // 前ヒレは斜め後ろ・外向き（進行方向に沿わせる）。上下の羽ばたきはYヨーの影響を受けず保たれる
+      { name: 'flipper-front-left',  x: rx * 0.55, z: rz * 0.7,  rotY: -2.2, scale: frontFlipperScale },
+      { name: 'flipper-front-right', x: rx * 0.55, z: -rz * 0.7, rotY: 2.2,  scale: frontFlipperScale },
       { name: 'flipper-back-left',   x: -rx * 0.6, z: rz * 0.62, rotY: -2.4, scale: backFlipperScale },
       { name: 'flipper-back-right',  x: -rx * 0.6, z: -rz * 0.62, rotY: 2.4, scale: backFlipperScale },
     ];

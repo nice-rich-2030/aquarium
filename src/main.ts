@@ -122,10 +122,11 @@ class DigitalAquarium {
    * デフォルトの生き物を配置
    */
   private spawnDefaultCreatures(): void {
-    // ネオンテトラの群れ
+    // ネオンテトラの群れ（1.3倍に大型化）
     this.creatureManager.spawn({
       definitionId: 'neontetra',
       count: 30,
+      sizeScale: 1.3,
     });
 
     // カクレクマノミ
@@ -140,16 +141,23 @@ class DigitalAquarium {
       count: 4,
     });
 
-    // グッピー
+    // グッピー（1.3倍に大型化）
     this.creatureManager.spawn({
       definitionId: 'guppy',
       count: 16,
+      sizeScale: 1.3,
     });
 
-    // 金魚
+    // 金魚（大きすぎたので縮小：半数を0.33倍・半数を0.25倍）
     this.creatureManager.spawn({
       definitionId: 'goldfish',
-      count: 4,
+      count: 2,
+      sizeScale: 0.33,
+    });
+    this.creatureManager.spawn({
+      definitionId: 'goldfish',
+      count: 2,
+      sizeScale: 0.25,
     });
 
     // サメ（捕食者・1匹）。近づくと周囲の魚が逃げる

@@ -55,9 +55,12 @@ export class SharkGenerator {
     const halfW = (x: number) => s * evaluateBezier(this.W_CURVE, tAtX(x));
     const halfH = (x: number) => s * evaluateBezier(this.H_CURVE, tAtX(x));
 
-    // --- 胴体（前部・剛体） ---
+    // --- 胴体（遊泳時に左右へしなる） ---
     const body = this.buildBody(s, snoutX, peduncleX, bodyMat);
     body.name = 'bodyFront';
+    // 進行波アニメーション用に元の頂点座標とサイズを保存
+    body.userData.original = (body.geometry.attributes.position.array as Float32Array).slice();
+    group.userData.size = s;
     group.add(body);
 
     // --- 尾（尾柄に密着したピボット内に尾鰭を作る） ---
@@ -283,7 +286,9 @@ export class SharkGenerator {
       const browGeo = new THREE.BoxGeometry(0.5 * s, 0.08 * s, 0.18 * s);
       const brow = new THREE.Mesh(browGeo, darkMat);
       brow.position.set(ex + 0.05 * s, halfH(ex) * 0.62, sign * halfW(ex) * 0.82);
-      brow.rotation.z = -sign * 0.25;
+      // z傾きは左右で同じにして対称な“への字”眉に（吻側を下げて睨む表情）
+      brow.rotation.z = 0.22;
+      // yヨーのみ左右ミラーにして頭部側面のカーブに沿わせる
       brow.rotation.y = sign * 0.3;
       group.add(brow);
     }
@@ -326,13 +331,54 @@ export class SharkGenerator {
     geo.setAttribute('color', new THREE.Float32BufferAttribute(arr, 3));
   }
 
+  // 進行波のパラメータ
+  private static readonly WAVE_K = 2.0;   // 頭→尾の位相差（波数）
+  private static readonly WAVE_ENV = 1.8; // 振幅エンベロープの指数（尾ほど大きく振れる）
+
   /**
-   * 遊泳アニメーション：尾ピボットを左右に振る。
+   * 遊泳アニメーション：胴体を左右にしならせる進行波 ＋ 尾鰭の連動。
+   *
+   * 胴体メッシュ(bodyFront)の各頂点をx位置に応じてz方向へ進行波で変位させ、
+   * 体全体をS字にうねらせる。尾ピボットは胴体後端の波（位置と接線）に追従させ、
+   * 波の延長として尾鰭が振れるようにする。
    */
-  public static updateSwim(mesh: THREE.Group, phase: number, amplitude: number): void {
+  public static updateSwim(mesh: THREE.Group, phase: number, speedRatio: number): void {
+    const s = mesh.userData.size as number;
+    if (!s) return;
+
+    const headX = -2.2 * s;
+    const peduncleX = 1.5 * s;
+    const BL = peduncleX - headX;
+    const k = this.WAVE_K;
+    const p = this.WAVE_ENV;
+    // 速いほど大きくしなる
+    const amp = (0.16 + 0.34 * Math.min(1, Math.max(0, speedRatio))) * s;
+
+    // 胴体の進行波（zへ変位）
+    const body = mesh.getObjectByName('bodyFront') as THREE.Mesh | null;
+    const orig = body?.userData.original as Float32Array | undefined;
+    if (body && orig) {
+      const pos = body.geometry.attributes.position;
+      const arr = pos.array as Float32Array;
+      for (let i = 0; i < pos.count; i++) {
+        const x = orig[i * 3];
+        const xn = THREE.MathUtils.clamp((x - headX) / BL, 0, 1);
+        const env = Math.pow(xn, p);
+        const wave = amp * env * Math.sin(phase - k * xn);
+        arr[i * 3 + 2] = orig[i * 3 + 2] + wave;
+      }
+      pos.needsUpdate = true;
+      body.geometry.computeVertexNormals();
+    }
+
+    // 尾ピボットを胴体後端の波に追従（位置＝後端の横変位、向き＝波の接線）
     const pivot = mesh.getObjectByName('tailPivot');
     if (pivot) {
-      pivot.rotation.y = Math.sin(phase) * amplitude;
+      const ang = phase - k; // xn=1（尾柄）での位相
+      const zPed = amp * Math.sin(ang);
+      const dzdx = (amp / BL) * (p * Math.sin(ang) - k * Math.cos(ang));
+      pivot.position.z = zPed;
+      pivot.rotation.y = Math.atan2(-dzdx, 1) * 1.4; // 尾の振りを少し強調
     }
   }
 }

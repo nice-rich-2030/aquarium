@@ -588,11 +588,12 @@ export class DecorationManager {
     }
 
     // --- 水中生物（亀2・エイ4） ---
+    // 半数の亀をやや小さめに（小さくなりすぎたため 0.63 → 0.72 に調整）
     this.place({
       definitionId: 'sea-turtle',
       position: { x: -28, y: 8, z: 12 },
       rotation: { x: 0, y: 0.6, z: 0 },
-      scale: 0.9,
+      scale: 0.72,
     });
     this.place({
       definitionId: 'sea-turtle',
