@@ -464,7 +464,7 @@ export class DecorationManager {
         pos.y,
         pos.z + dir.z * 5 * instance.scale
       );
-      if (mouth.distanceTo(foodTarget.position) < 3 * instance.scale + 1) {
+      if (mouth.distanceTo(foodTarget.position) < 1.2 * instance.scale + 0.5) {
         this.feedingManager.consume(foodTarget);
         instance.satietyTimer = 60; // 食べたら一定時間お腹いっぱい
       }

@@ -151,6 +151,12 @@ class DigitalAquarium {
       definitionId: 'goldfish',
       count: 4,
     });
+
+    // サメ（捕食者・1匹）。近づくと周囲の魚が逃げる
+    this.creatureManager.spawn({
+      definitionId: 'shark',
+      count: 1,
+    });
   }
 
   /**

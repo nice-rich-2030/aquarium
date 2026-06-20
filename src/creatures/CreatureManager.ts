@@ -7,6 +7,7 @@ import {
   DEFAULT_ANIMATION,
 } from '../types/creatures';
 import { FishGenerator } from './FishGenerator';
+import { SharkGenerator } from './SharkGenerator';
 import { BoidsBehavior } from './BoidsBehavior';
 import { FeedingManager } from './FeedingManager';
 import { randomInBox, randomRange, headingToQuaternion } from '../utils/math';
@@ -72,6 +73,33 @@ const DEFAULT_CREATURES: CreatureDefinition[] = [
     finShape: { tail: { type: 'fan', size: 0.8 }, dorsal: { x: 0.1, size: 0.3, angle: 0 } },
     behavior: { ...DEFAULT_BEHAVIOR, maxSpeed: 6, perceptionRadius: 12 },
     animation: { ...DEFAULT_ANIMATION, swimFrequency: 12, swimAmplitude: 0.1 },
+  },
+  {
+    id: 'shark',
+    name: 'サメ',
+    description: '水槽をゆったり回遊する捕食者。近づくと魚たちは逃げ出す',
+    predator: true,
+    model: 'shark',
+    category: 'fish',
+    size: { min: 4.6, max: 5.2 },
+    colors: { primary: '#6b7785', secondary: '#cdd6dd', pattern: 'gradient' },
+    bodyShape: { length: 5, widthCurve: [0.15, 0.35, 0.3, 0.05], heightCurve: [0.2, 0.5, 0.45, 0.05] },
+    finShape: {
+      tail: { type: 'forked', size: 1.2 },
+      dorsal: { x: 0.1, size: 1.3, angle: 0 },
+      pectoral: { x: -0.3, size: 0.7, angle: 0.3 },
+    },
+    behavior: {
+      ...DEFAULT_BEHAVIOR,
+      maxSpeed: 5,
+      turnSpeed: 1.5,
+      perceptionRadius: 30,
+      separationWeight: 0.4,
+      alignmentWeight: 0,
+      cohesionWeight: 0,
+      wanderStrength: 0.6,
+    },
+    animation: { ...DEFAULT_ANIMATION, swimFrequency: 2.5, swimAmplitude: 0.18 },
   },
 ];
 
@@ -146,13 +174,16 @@ export class CreatureManager {
   ): CreatureInstance {
     const size = randomRange(definition.size.min, definition.size.max);
 
-    // メッシュを生成
-    const mesh = FishGenerator.generate(
-      definition.bodyShape,
-      definition.finShape,
-      definition.colors,
-      size
-    );
+    // メッシュを生成（サメは専用ジェネレーター）
+    const mesh =
+      definition.model === 'shark'
+        ? SharkGenerator.generate(size)
+        : FishGenerator.generate(
+            definition.bodyShape,
+            definition.finShape,
+            definition.colors,
+            size
+          );
 
     // 初期位置・速度を設定
     const position = randomInBox(spawnArea);
@@ -186,6 +217,7 @@ export class CreatureManager {
       swimPhase: Math.random() * Math.PI * 2,
       behaviorParams: { ...definition.behavior },
       animationParams: { ...definition.animation },
+      isPredator: definition.predator === true,
     };
 
     return instance;
@@ -277,6 +309,14 @@ export class CreatureManager {
   ): void {
     const params = instance.animationParams;
     instance.swimPhase += delta * params.swimFrequency;
+
+    // サメは尾ピボットを左右に振って遊泳（速度が速いほど大きく振る）
+    if (instance.mesh.getObjectByName('tailPivot')) {
+      const speedRatio = instance.velocity.length() / instance.behaviorParams.maxSpeed;
+      const amp = 0.12 + speedRatio * 0.22;
+      SharkGenerator.updateSwim(instance.mesh, instance.swimPhase, amp);
+      return;
+    }
 
     // 泳ぎのうねり（体の子メッシュを変形）
     const bodyMesh = instance.mesh.getObjectByName('body') as THREE.Mesh;

@@ -49,6 +49,8 @@ export interface CreatureDefinition {
   id: string;
   name: string;
   description?: string; // ツールチップに表示する一言の特徴
+  predator?: boolean;   // 捕食者（近くの魚が逃げる対象）
+  model?: 'fish' | 'shark'; // メッシュ生成器（省略時は汎用の魚）
   category: 'fish' | 'crustacean' | 'other';
   size: { min: number; max: number };
   colors: ColorPalette;
@@ -75,6 +77,8 @@ export interface CreatureInstance {
   flipDir?: THREE.Vector3;
   // 餌を食べた後の満腹の残り時間(秒)。>0 の間は餌に反応しない
   satietyTimer?: number;
+  // 捕食者（サメなど）。他の魚はこの個体から逃げる
+  isPredator?: boolean;
 }
 
 // 生き物スポーン設定

@@ -46,9 +46,12 @@ export class BoidsBehavior {
     // 空間分割グリッドを再構築
     this.rebuildSpatialGrid(creatures);
 
+    // 捕食者（サメなど）を抽出（少数前提なので毎フレーム線形探索で十分）
+    const predators = creatures.filter((c) => c.isPredator);
+
     // 各個体の力を計算し速度・位置を更新
     for (const creature of creatures) {
-      this.updateCreature(creature, delta, feeding);
+      this.updateCreature(creature, delta, feeding, predators);
     }
 
     // ハードコリジョン解決（重なりが残っている場合に強制的に押し出す）
@@ -161,10 +164,15 @@ export class BoidsBehavior {
   private updateCreature(
     creature: CreatureInstance,
     delta: number,
-    feeding?: FeedingContext
+    feeding?: FeedingContext,
+    predators: CreatureInstance[] = []
   ): void {
     const params = creature.behaviorParams;
     const collisionRadius = this.getCollisionRadius(creature);
+
+    // 捕食者からの逃避力（自分が捕食者でない場合のみ）
+    const flee = this.calculateFlee(creature, predators);
+    const isFleeing = flee.lengthSq() > 1e-6;
 
     // 満腹タイマーを進める（>0 の間は餌に反応しない）
     if (creature.satietyTimer !== undefined && creature.satietyTimer > 0) {
@@ -199,8 +207,11 @@ export class BoidsBehavior {
       .add(boundary.multiplyScalar(2.0))
       .add(wander);
 
-    // 摂餌：餌があれば最寄りの餌へ強く誘導（徘徊などより優先される）
-    if (foodTarget) {
+    if (isFleeing) {
+      // 逃避中：捕食者から離れる方向を最優先（摂餌・徘徊より強い）
+      acceleration.add(flee.multiplyScalar(params.maxSpeed * 10));
+    } else if (foodTarget) {
+      // 摂餌：餌があれば最寄りの餌へ強く誘導（徘徊などより優先される）
       const toFood = foodTarget.position.clone().sub(creature.position).normalize();
       acceleration.add(toFood.multiplyScalar(params.maxSpeed * 6));
     }
@@ -209,7 +220,9 @@ export class BoidsBehavior {
     // Boids 力からは「行きたい速度（desired）」だけを求める。
     // 実際の移動は常に頭の向きへ行うことで、向きと進行方向を一致させる。
     const desiredVelocity = creature.velocity.clone().add(acceleration.multiplyScalar(delta));
-    let clampedDesired = clampMagnitude(desiredVelocity, params.maxSpeed);
+    // 逃避中は恐怖で速度上限を引き上げる（パニックダッシュ）
+    const speedCap = isFleeing ? params.maxSpeed * 1.6 : params.maxSpeed;
+    let clampedDesired = clampMagnitude(desiredVelocity, speedCap);
 
     // クリックで誘発された反転アクション：
     // 一定時間、逆方向を目標として上書きする。頭が向き変えしてから泳ぎ出す
@@ -250,7 +263,8 @@ export class BoidsBehavior {
     // 摂餌：口先（頭=forward方向）が餌に届いたら食べる
     if (foodTarget && feeding) {
       const mouth = creature.position.clone().addScaledVector(forward, creature.size * 1.2);
-      if (mouth.distanceTo(foodTarget.position) < creature.size * 0.9) {
+      // 口先が餌にほぼ触れるまで近づいてから食べる（餌径ぶん＋わずか）
+      if (mouth.distanceTo(foodTarget.position) < 0.5 + creature.size * 0.15) {
         feeding.consume(foodTarget);
         // 食べたら一定時間お腹いっぱい（餌に反応しなくなる）
         creature.satietyTimer = 60;
@@ -382,6 +396,34 @@ export class BoidsBehavior {
   }
 
   /**
+   * 捕食者からの逃避力。
+   *
+   * 自分が捕食者でない場合、逃避半径（捕食者サイズ依存）内にいる捕食者から
+   * 離れる方向の力を返す。近いほど強い。捕食者がいなければゼロベクトル。
+   */
+  private calculateFlee(
+    creature: CreatureInstance,
+    predators: CreatureInstance[]
+  ): THREE.Vector3 {
+    const force = new THREE.Vector3();
+    if (creature.isPredator || predators.length === 0) return force;
+
+    for (const predator of predators) {
+      // 大きい捕食者ほど広い範囲で恐れられる
+      const fleeRadius = predator.size * 5;
+      const diff = creature.position.clone().sub(predator.position);
+      const distance = diff.length();
+
+      if (distance < fleeRadius && distance > 0.001) {
+        // 近いほど強く（線形）。方向は捕食者の逆向き
+        const strength = 1 - distance / fleeRadius;
+        force.add(diff.normalize().multiplyScalar(strength));
+      }
+    }
+    return force;
+  }
+
+  /**
    * 知覚範囲内で最寄りの餌を探す（なければ null）
    */
   private findNearestFood(
@@ -389,6 +431,9 @@ export class BoidsBehavior {
     feeding?: FeedingContext
   ): FoodPellet | null {
     if (!feeding || feeding.pellets.length === 0) return null;
+
+    // 捕食者（サメ）は魚の餌を食べない
+    if (creature.isPredator) return null;
 
     // 満腹中は餌に気づかない
     if (creature.satietyTimer !== undefined && creature.satietyTimer > 0) return null;
