@@ -26,6 +26,11 @@ export class SettingsPanel {
     ambientIntensity: number;
     sunIntensity: number;
   };
+  // カメラの現在値（ライブ表示用）
+  private cameraInfo = {
+    posX: 0, posY: 0, posZ: 0,
+    tgtX: 0, tgtY: 0, tgtZ: 0,
+  };
 
   constructor(options: SettingsPanelOptions) {
     this.options = options;
@@ -109,6 +114,32 @@ export class SettingsPanel {
       .onChange((value: number) => {
         this.options.camera.enableAutoRotate(this.settings.autoRotate, value);
       });
+
+    // カメラの現在値をライブ表示（読み取り専用）。プリセット微調整に使う
+    const info = folder.addFolder('View Info (live)');
+    info.add(this.cameraInfo, 'posX').name('pos.x').listen().disable();
+    info.add(this.cameraInfo, 'posY').name('pos.y').listen().disable();
+    info.add(this.cameraInfo, 'posZ').name('pos.z').listen().disable();
+    info.add(this.cameraInfo, 'tgtX').name('lookAt.x').listen().disable();
+    info.add(this.cameraInfo, 'tgtY').name('lookAt.y').listen().disable();
+    info.add(this.cameraInfo, 'tgtZ').name('lookAt.z').listen().disable();
+
+    // 現在のビューをプリセット形式でコンソール出力（config.tsへ転記用）
+    info.add({
+      log: () => {
+        const p = this.options.camera.getCamera().position;
+        const t = this.options.camera.getControls().target;
+        const r = (v: number) => Math.round(v * 10) / 10;
+        const preset = {
+          name: '正面',
+          position: { x: r(p.x), y: r(p.y), z: r(p.z) },
+          lookAt: { x: r(t.x), y: r(t.y), z: r(t.z) },
+        };
+        console.log('Camera preset:', JSON.stringify(preset));
+      },
+    }, 'log').name('Log preset to console');
+
+    info.open();
   }
 
   /**
@@ -230,6 +261,21 @@ export class SettingsPanel {
     folder.add(addDecoration, 'x', -40, 40, 1).name('X Position');
     folder.add(addDecoration, 'z', -20, 20, 1).name('Z Position');
     folder.add(addDecoration, 'add').name('Add Decoration');
+  }
+
+  /**
+   * カメラの現在値を更新（毎フレーム呼ぶ。ライブ表示用）
+   */
+  public update(): void {
+    const p = this.options.camera.getCamera().position;
+    const t = this.options.camera.getControls().target;
+    const r = (v: number) => Math.round(v * 10) / 10;
+    this.cameraInfo.posX = r(p.x);
+    this.cameraInfo.posY = r(p.y);
+    this.cameraInfo.posZ = r(p.z);
+    this.cameraInfo.tgtX = r(t.x);
+    this.cameraInfo.tgtY = r(t.y);
+    this.cameraInfo.tgtZ = r(t.z);
   }
 
   /**

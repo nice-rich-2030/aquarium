@@ -36,6 +36,9 @@ export class Particles {
 
   private dummy: THREE.Object3D = new THREE.Object3D();
 
+  // 泡の湧出点（草の位置）。多いほどそこから泡が多く湧く
+  private emitters: THREE.Vector3[] = [];
+
   constructor(tankBounds: THREE.Box3, config: ParticleConfig = DEFAULT_PARTICLE_CONFIG) {
     this.config = config;
     this.tankBounds = tankBounds;
@@ -84,14 +87,15 @@ export class Particles {
    */
   private initBubbles(): void {
     const size = this.tankBounds.getSize(new THREE.Vector3());
-    const center = this.tankBounds.getCenter(new THREE.Vector3());
 
     for (let i = 0; i < this.config.bubbleCount; i++) {
+      const spawn = this.bubbleSpawnXZ();
       const bubble: Bubble = {
+        // 初期はランダムな高さに散らす（湧出点のx,zで、高さだけランダム）
         position: new THREE.Vector3(
-          center.x + (Math.random() - 0.5) * size.x * 0.8,
+          spawn.x,
           this.tankBounds.min.y + Math.random() * size.y,
-          center.z + (Math.random() - 0.5) * size.z * 0.8
+          spawn.z
         ),
         velocity: new THREE.Vector3(
           0,
@@ -104,6 +108,46 @@ export class Particles {
         wobble: Math.random() * Math.PI * 2,
       };
       this.bubbles.push(bubble);
+    }
+  }
+
+  /**
+   * 泡の湧出x,zを決める。
+   *
+   * 草（emitters）が登録されていれば高確率でその根元から湧かせる。
+   * 草が密な場所ほど候補点が多くなり、自然と泡もそこに集中する。
+   * 一部はアンビエントとして水槽内のランダムな底面から湧かせる。
+   */
+  private bubbleSpawnXZ(): { x: number; z: number } {
+    if (this.emitters.length > 0 && Math.random() < 0.75) {
+      const e = this.emitters[Math.floor(Math.random() * this.emitters.length)];
+      return {
+        x: e.x + (Math.random() - 0.5) * 4,
+        z: e.z + (Math.random() - 0.5) * 4,
+      };
+    }
+    const size = this.tankBounds.getSize(new THREE.Vector3());
+    const center = this.tankBounds.getCenter(new THREE.Vector3());
+    return {
+      x: center.x + (Math.random() - 0.5) * size.x * 0.8,
+      z: center.z + (Math.random() - 0.5) * size.z * 0.8,
+    };
+  }
+
+  /**
+   * 泡の湧出点（草の位置）を設定し、既存の泡も振り分け直す。
+   */
+  public setEmitters(positions: THREE.Vector3[]): void {
+    this.emitters = positions;
+    const size = this.tankBounds.getSize(new THREE.Vector3());
+    for (const bubble of this.bubbles) {
+      const spawn = this.bubbleSpawnXZ();
+      bubble.position.set(
+        spawn.x,
+        this.tankBounds.min.y + Math.random() * size.y,
+        spawn.z
+      );
+      bubble.wobble = Math.random() * Math.PI * 2;
     }
   }
 
@@ -143,9 +187,6 @@ export class Particles {
    * 泡を更新
    */
   private updateBubbles(delta: number, _elapsed: number): void {
-    const size = this.tankBounds.getSize(new THREE.Vector3());
-    const center = this.tankBounds.getCenter(new THREE.Vector3());
-
     for (let i = 0; i < this.bubbles.length; i++) {
       const bubble = this.bubbles[i];
 
@@ -157,13 +198,10 @@ export class Particles {
       bubble.position.x += Math.sin(bubble.wobble) * delta * 0.5;
       bubble.position.z += Math.cos(bubble.wobble * 0.7) * delta * 0.3;
 
-      // 水面に達したらリセット
-      if (bubble.position.y > this.tankBounds.max.y - 1) {
-        bubble.position.set(
-          center.x + (Math.random() - 0.5) * size.x * 0.8,
-          this.tankBounds.min.y,
-          center.z + (Math.random() - 0.5) * size.z * 0.8
-        );
+      // 水面付近まで上昇したら底（草の根元など）から湧き直す
+      if (bubble.position.y > this.tankBounds.max.y - 0.2) {
+        const spawn = this.bubbleSpawnXZ();
+        bubble.position.set(spawn.x, this.tankBounds.min.y, spawn.z);
         bubble.wobble = Math.random() * Math.PI * 2;
       }
 

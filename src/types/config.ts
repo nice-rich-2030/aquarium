@@ -108,7 +108,7 @@ export const DEFAULT_WATER_CONFIG: WaterConfig = {
 
 // デフォルトのパーティクル設定
 export const DEFAULT_PARTICLE_CONFIG: ParticleConfig = {
-  bubbleCount: 50,
+  bubbleCount: 150,
   bubbleSpeed: 5,
   bubbleSize: { min: 0.1, max: 0.5 },
   dustCount: 100,
@@ -132,7 +132,7 @@ export const DEFAULT_CAMERA_CONFIG: CameraConfig = {
 
 // デフォルトのカメラプリセット
 export const DEFAULT_CAMERA_PRESETS: CameraPreset[] = [
-  { name: '正面', position: { x: 0, y: 20, z: 150 }, lookAt: { x: 0, y: 0, z: 0 } },
+  { name: '正面', position: { x: -2.3, y: 4.4, z: 96.6 }, lookAt: { x: 0, y: 0, z: 0 } },
   { name: '上から', position: { x: 0, y: 150, z: 0 }, lookAt: { x: 0, y: 0, z: 0 } },
   { name: 'コーナー', position: { x: 120, y: 50, z: 120 }, lookAt: { x: 0, y: 0, z: 0 } },
   { name: '横から', position: { x: 190, y: 15, z: 0 }, lookAt: { x: 0, y: 0, z: 0 } },

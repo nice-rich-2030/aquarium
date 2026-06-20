@@ -87,6 +87,13 @@ class DigitalAquarium {
     // カクレクマノミの住処としてイソギンチャク位置を登録
     this.creatureManager.setShelters(this.decorationManager.getShelterPositions());
 
+    // 泡の湧出点として草とイソギンチャクの位置を登録
+    // （草が密な場所・イソギンチャクのエリアから泡が多く湧く）
+    this.particles.setEmitters([
+      ...this.decorationManager.getPlantEmitterPositions(),
+      ...this.decorationManager.getAnemoneEmitterPositions(),
+    ]);
+
     // ポストプロセス（ブルーム）を構築
     this.postProcessing = new PostProcessing(
       this.renderer.getRenderer(),
@@ -116,6 +123,9 @@ class DigitalAquarium {
 
     // リサイズハンドラ
     this.setupResizeHandler();
+
+    // キーボードショートカット
+    this.setupKeyboard();
 
     // ローディング画面を非表示
     this.hideLoading();
@@ -180,6 +190,12 @@ class DigitalAquarium {
       // カメラ更新
       this.camera.update(delta);
 
+      // 設定パネルのカメラ情報をライブ更新
+      this.settingsPanel.update();
+
+      // 水槽更新（背景の海中ライトのアニメーション）
+      this.tank.update(elapsed);
+
       // ライティング更新（コースティクスアニメーション）
       this.lighting.update(elapsed);
 
@@ -199,6 +215,23 @@ class DigitalAquarium {
     // レンダリングコールバック（ポストプロセス経由）
     this.loop.setRenderCallback(() => {
       this.postProcessing.render();
+    });
+  }
+
+  /**
+   * キーボードショートカットを設定
+   * f: 正面プリセットを表示
+   */
+  private setupKeyboard(): void {
+    window.addEventListener('keydown', (e) => {
+      // 入力欄(設定パネル等)への入力中は無視
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+      if (e.key === 'f' || e.key === 'F') {
+        this.camera.setPreset('正面');
+      }
     });
   }
 

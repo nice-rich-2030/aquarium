@@ -9,6 +9,7 @@ export class Tank {
   private group: THREE.Group;
   private config: TankConfig;
   private bounds: THREE.Box3;
+  private bgMaterial?: THREE.ShaderMaterial; // 背景の海中ライトのアニメ用
 
   constructor(config: TankConfig = DEFAULT_TANK_CONFIG) {
     this.config = config;
@@ -103,12 +104,7 @@ export class Tank {
     front.name = 'glass-front';
     this.group.add(front);
 
-    // 背面
-    const back = new THREE.Mesh(frontGeometry, material);
-    back.position.set(0, 0, -depth / 2);
-    back.rotation.y = Math.PI;
-    back.name = 'glass-back';
-    this.group.add(back);
+    // 背面ガラスは大きな背景面と二重に見えるため表示しない（背景で覆われる）
 
     // 左側面
     const sideGeometry = new THREE.PlaneGeometry(depth, height);
@@ -127,39 +123,80 @@ export class Tank {
   }
 
   /**
-   * 背景グラデーションを作成
+   * 背景を作成（時間で揺らぐ海中の光を表現するシェーダー）
+   *
+   * 縦グラデーションに加え、上から差すゴッドレイ（光の筋）がゆっくり揺れ、
+   * 全体の明暗もゆるやかに呼吸する。色は config.backgroundColor を中間色に使う。
    */
   private createBackground(): void {
     const { width, height, depth, backgroundColor } = this.config;
 
-    // 背景は暗い青のグラデーション
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d')!;
+    const mid = new THREE.Color(backgroundColor);
+    const top = mid.clone().lerp(new THREE.Color('#2a6f8f'), 0.6); // 水面側は明るく
+    const bottom = new THREE.Color('#00040a');                     // 深部は暗く
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, 256);
-    gradient.addColorStop(0, '#001020');
-    gradient.addColorStop(0.5, backgroundColor);
-    gradient.addColorStop(1, '#000510');
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uTop: { value: new THREE.Vector3(top.r, top.g, top.b) },
+        uMid: { value: new THREE.Vector3(mid.r, mid.g, mid.b) },
+        uBottom: { value: new THREE.Vector3(bottom.r, bottom.g, bottom.b) },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform vec3 uTop;
+        uniform vec3 uMid;
+        uniform vec3 uBottom;
+        varying vec2 vUv;
+        void main() {
+          float t = clamp(vUv.y, 0.0, 1.0);
+          // 縦グラデーション（下:暗 → 中 → 上:明）
+          vec3 col = t < 0.5 ? mix(uBottom, uMid, t * 2.0)
+                             : mix(uMid, uTop, (t - 0.5) * 2.0);
 
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 256, 256);
+          // ゴッドレイ（上から差す光の筋）。ゆっくり揺れ、上部ほど強い
+          float s = sin(vUv.x * 8.0  + vUv.y * 1.5 + uTime * 0.35)
+                  + sin(vUv.x * 15.0 - vUv.y * 1.0 + uTime * 0.22)
+                  + sin(vUv.x * 23.0 + uTime * 0.15);
+          s /= 3.0;
+          float rays = smoothstep(0.35, 1.0, s) * t * t;
+          col += rays * vec3(0.10, 0.18, 0.24);
 
-    const texture = new THREE.CanvasTexture(canvas);
+          // 全体の明暗をゆるやかに呼吸させる
+          float breath = 0.5 + 0.5 * sin(uTime * 0.12);
+          col *= 0.88 + 0.18 * breath;
 
-    // 背面の背景
-    const geometry = new THREE.PlaneGeometry(width * 1.5, height * 1.5);
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
       side: THREE.FrontSide,
+      depthWrite: false,
     });
+    this.bgMaterial = material;
 
+    // 背面の背景（中心は同じまま、3倍に拡大）
+    const geometry = new THREE.PlaneGeometry(width * 3, height * 3);
     const background = new THREE.Mesh(geometry, material);
     background.position.set(0, 0, -depth / 2 - 1);
     background.name = 'background';
 
     this.group.add(background);
+  }
+
+  /**
+   * 毎フレーム更新（背景シェーダーの時間を進める）
+   */
+  public update(time: number): void {
+    if (this.bgMaterial) {
+      this.bgMaterial.uniforms.uTime.value = time;
+    }
   }
 
   /**

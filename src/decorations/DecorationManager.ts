@@ -863,6 +863,29 @@ export class DecorationManager {
   }
 
   /**
+   * 泡の湧出点となる草の位置を返す（草が密なほど点が多く＝泡が多く湧く）。
+   */
+  public getPlantEmitterPositions(): THREE.Vector3[] {
+    return this.instances
+      .filter((i) => this.definitions.get(i.definitionId)?.generatorType === 'plant')
+      .map((i) => i.position.clone());
+  }
+
+  /**
+   * イソギンチャクの湧出点を返す。株数が少ないため weight 回ぶん複製して
+   * 候補点を増やし、草と同様にそのエリアから泡が多く湧くようにする。
+   */
+  public getAnemoneEmitterPositions(weight: number = 50): THREE.Vector3[] {
+    const result: THREE.Vector3[] = [];
+    for (const i of this.instances) {
+      if (this.definitions.get(i.definitionId)?.generatorType === 'anemone') {
+        for (let k = 0; k < weight; k++) result.push(i.position.clone());
+      }
+    }
+    return result;
+  }
+
+  /**
    * 住処（イソギンチャク）の位置を返す。
    * 触手の中ほどを狙えるよう少し上にオフセットする。
    */
