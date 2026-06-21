@@ -46,6 +46,10 @@ let _sandMap: THREE.CanvasTexture | null = null;
 let _sandBump: THREE.CanvasTexture | null = null;
 let _anemoneMap: THREE.CanvasTexture | null = null;
 let _anemoneBump: THREE.CanvasTexture | null = null;
+let _whaleMap: THREE.CanvasTexture | null = null;
+let _whaleBump: THREE.CanvasTexture | null = null;
+let _morayMap: THREE.CanvasTexture | null = null;
+let _morayBump: THREE.CanvasTexture | null = null;
 
 /** 岩用：色の濃淡（map）＋ごつごつした凹凸（bump）＋粗さムラ（roughness） */
 export function stoneTextures(): {
@@ -165,4 +169,38 @@ export function anemoneTextures(): { map: THREE.CanvasTexture; bump: THREE.Canva
     _anemoneBump = grayTexture((x, y) => 0.35 + band(y) * 0.5 + fbm(x * 18, y * 18, 3) * 0.15);
   }
   return { map: _anemoneMap, bump: _anemoneBump };
+}
+
+/** クジラ用：まだら肌（大きな斑＋フジツボ状の斑点）と皮膚のしわ凹凸 */
+export function whaleTextures(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+  const mottle = (x: number, y: number) => fbm(x * 4, y * 4, 4) * 0.5 + 0.5;
+  const speck = (x: number, y: number) => Math.pow(turbulence(x * 18 + 5.1, y * 18 + 2.7, 3), 1.5);
+  if (!_whaleMap) {
+    // 0.55..1.0：頂点カラー(背暗/腹明)に乗算する、まだらの色ムラ
+    _whaleMap = grayTexture((x, y) => 0.62 + mottle(x, y) * 0.38 - speck(x, y) * 0.22);
+  }
+  if (!_whaleBump) {
+    _whaleBump = grayTexture((x, y) => 0.45 + mottle(x, y) * 0.35 + speck(x, y) * 0.2);
+  }
+  return { map: _whaleMap, bump: _whaleBump };
+}
+
+/** ウツボ用：網目状の暗い斑（グロテスクな豹紋）と疣（いぼ）状の凹凸 */
+export function morayTextures(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+  const blotch = (x: number, y: number) => {
+    const v = turbulence(x * 5 + 1.3, y * 5 + 0.7, 4);
+    return Math.min(1, Math.max(0, (v - 0.3) / 0.22)); // 0..1 の斑
+  };
+  if (!_morayMap) {
+    // 明るい地肌に暗い大きな斑（0.3..0.9）。細かいムラも少し。
+    _morayMap = grayTexture((x, y) => {
+      const fine = fbm(x * 14, y * 14, 3) * 0.1;
+      return 0.9 - blotch(x, y) * 0.6 - fine;
+    });
+  }
+  if (!_morayBump) {
+    // 斑がやや盛り上がる（疣のような質感）
+    _morayBump = grayTexture((x, y) => 0.45 + blotch(x, y) * 0.45 + fbm(x * 20, y * 20, 3) * 0.1);
+  }
+  return { map: _morayMap, bump: _morayBump };
 }

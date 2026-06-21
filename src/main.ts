@@ -1,5 +1,5 @@
 import { AquariumScene, AquariumRenderer, AquariumCamera, AnimationLoop, PostProcessing } from './core';
-import { Tank, Lighting, Particles } from './environment';
+import { Tank, Lighting, Particles, Geyser } from './environment';
 import { CreatureManager, FeedingManager } from './creatures';
 import { DecorationManager } from './decorations';
 import { SettingsPanel, CreatureInteraction } from './ui';
@@ -24,6 +24,7 @@ class DigitalAquarium {
   private tank: Tank;
   private lighting: Lighting;
   private particles: Particles;
+  private geysers: Geyser[] = [];
   private creatureManager: CreatureManager;
   private feedingManager: FeedingManager;
   private decorationManager: DecorationManager;
@@ -62,6 +63,20 @@ class DigitalAquarium {
       DEFAULT_PARTICLE_CONFIG
     );
     this.scene.add(this.particles.getGroup());
+
+    // 砂地から水が吹き出す噴出口（3か所）
+    // 3つ目は水車(66,-32)の向かって右下。上向き水流が反時計回りの回転を生む
+    const floorY = this.tank.getBounds().min.y + 0.5;
+    const ventDefs: { x: number; z: number; h?: number }[] = [
+      { x: 4, z: 22 },
+      { x: -34, z: 4 },
+      { x: 80, z: -32, h: 24 },
+    ];
+    for (const p of ventDefs) {
+      const geyser = new Geyser({ x: p.x, y: floorY, z: p.z }, p.h);
+      this.geysers.push(geyser);
+      this.scene.add(geyser.getGroup());
+    }
 
     // 生き物マネージャーを作成
     this.creatureManager = new CreatureManager(this.tank.getSwimmableArea());
@@ -203,6 +218,11 @@ class DigitalAquarium {
       // パーティクル更新
       this.particles.update(delta, elapsed);
 
+      // 噴出口（水・砂の吹き出し）更新
+      for (const geyser of this.geysers) {
+        geyser.update(delta, elapsed);
+      }
+
       // 餌の沈降・寿命を更新（魚AIが参照する前に位置を更新）
       this.feedingManager.update(delta);
 
@@ -283,6 +303,7 @@ class DigitalAquarium {
     this.creatureManager.dispose();
     this.decorationManager.dispose();
     this.particles.dispose();
+    for (const geyser of this.geysers) geyser.dispose();
     this.lighting.dispose();
     this.tank.dispose();
     this.scene.dispose();

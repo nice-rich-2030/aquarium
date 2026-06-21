@@ -150,21 +150,24 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
   },
   {
     id: 'starfish-orange', name: 'ヒトデ（橙）',
-    description: '砂の上でじっとしている五本腕の星形',
+    description: '砂の上をごくゆっくり這い回る五本腕の星形',
     category: 'other', generatorType: 'starfish',
     params: { size: 1.6, color: '#e8643c' },
+    animation: { type: 'starfish', speed: 1.0 },
   },
   {
     id: 'starfish-red', name: 'ヒトデ（赤）',
-    description: '砂の上でじっとしている五本腕の星形',
+    description: '砂の上をごくゆっくり這い回る五本腕の星形',
     category: 'other', generatorType: 'starfish',
     params: { size: 1.4, color: '#d23b3b' },
+    animation: { type: 'starfish', speed: 1.0 },
   },
   {
     id: 'starfish-purple', name: 'ヒトデ（紫）',
-    description: '砂の上でじっとしている五本腕の星形',
+    description: '砂の上をごくゆっくり這い回る五本腕の星形',
     category: 'other', generatorType: 'starfish',
     params: { size: 1.5, color: '#9b5bd6' },
+    animation: { type: 'starfish', speed: 1.0 },
   },
   {
     id: 'anemone-pink', name: 'イソギンチャク（桃）',
@@ -479,8 +482,25 @@ export class DecorationManager {
         AnemoneGenerator.updateSway(instance.mesh, elapsed);
       } else if (type === 'lighthouse') {
         LighthouseGenerator.updateSpin(instance.mesh, elapsed, instance.animation!.speed ?? 0.6);
+      } else if (type === 'starfish') {
+        this.animateStarfish(instance, elapsed);
       }
     }
+  }
+
+  /**
+   * ヒトデの徘徊。約10分周期の閉じた8の字パスで、元の位置周辺を
+   * ごくゆっくり這い、周期ごとに必ず元の場所へ戻る（ドリフトしない）。
+   */
+  private animateStarfish(instance: DecorationInstance, time: number): void {
+    const base = instance.position;
+    const ph = base.x * 0.3 + base.z * 0.21;     // 個体ごとに位相をずらす
+    const w = (Math.PI * 2) / 600;               // 10分周期
+    const a = time * w + ph;
+    const radius = 5;                             // 徘徊範囲
+    instance.mesh.position.x = base.x + Math.sin(a) * radius;
+    instance.mesh.position.z = base.z + Math.sin(a * 2) * radius * 0.6; // 8の字
+    instance.mesh.rotation.y = instance.rotation.y + Math.sin(a) * 0.4; // 向きもゆっくり振る
   }
 
   /**

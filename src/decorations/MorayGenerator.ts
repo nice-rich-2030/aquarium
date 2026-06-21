@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CreatureModelParams, DEFAULT_TURTLE_PARAMS } from '../types/decorations';
+import { morayTextures } from '../utils/textures';
 
 /**
  * ウツボのプロシージャルジェネレーター
@@ -32,8 +33,13 @@ export class MorayGenerator {
     group.name = 'moray';
     group.userData.size = s; // 引っ込み量の計算に使用
 
+    // グロテスクな豹紋テクスチャ（網目状の暗い斑＋疣状の凹凸）
+    const { map: morayMap, bump: morayBump } = morayTextures();
+    morayMap.repeat.set(3, 7);  // 周方向3・長手方向7で斑を散らす
+    morayBump.repeat.set(3, 7);
     const skinMat = new THREE.MeshStandardMaterial({
-      color: '#7a8a44', roughness: 0.55, metalness: 0.0, envMapIntensity: 0.4,
+      color: '#8a9a54', roughness: 0.55, metalness: 0.0, envMapIntensity: 0.4,
+      map: morayMap, bumpMap: morayBump, bumpScale: 0.35,
     });
     const bellyMat = new THREE.MeshStandardMaterial({
       color: '#c9c98a', roughness: 0.6, metalness: 0.0, envMapIntensity: 0.35,
@@ -52,7 +58,8 @@ export class MorayGenerator {
     // --- 体（チューブ） ---
     const pts = this.CURVE.map(([x, y, z]) => new THREE.Vector3(x * s, y * s, z * s));
     const curve = new THREE.CatmullRomCurve3(pts);
-    const tubeGeo = new THREE.TubeGeometry(curve, 50, 0.9 * s, 12, false);
+    // 体の太さ（直径）を1.5倍に（チンアナゴ的な細さを解消）
+    const tubeGeo = new THREE.TubeGeometry(curve, 50, 1.35 * s, 12, false);
     const body = new THREE.Mesh(tubeGeo, skinMat);
     body.castShadow = true;
     sway.add(body);
@@ -69,38 +76,38 @@ export class MorayGenerator {
     head.rotation.z = pitch;
     sway.add(head);
 
-    // 上顎・頭（前方+xへ伸びる紡錘）
-    const skullGeo = new THREE.SphereGeometry(0.9 * s, 16, 12);
-    skullGeo.scale(1.9, 0.85, 0.8);
+    // 上顎・頭（前方+xへ伸びる紡錘）。体が太くなったぶん頭も太く
+    const skullGeo = new THREE.SphereGeometry(1.3 * s, 16, 12);
+    skullGeo.scale(1.7, 0.95, 0.92);
     const skull = new THREE.Mesh(skullGeo, skinMat);
     skull.position.set(0.9 * s, 0.05 * s, 0);
     skull.castShadow = true;
     head.add(skull);
 
     // 口内（暗いくぼみ）
-    const gapeGeo = new THREE.SphereGeometry(0.7 * s, 12, 10);
-    gapeGeo.scale(1.7, 0.5, 0.7);
+    const gapeGeo = new THREE.SphereGeometry(0.95 * s, 12, 10);
+    gapeGeo.scale(1.7, 0.55, 0.85);
     const gape = new THREE.Mesh(gapeGeo, mouthMat);
-    gape.position.set(1.05 * s, -0.12 * s, 0);
+    gape.position.set(1.2 * s, -0.14 * s, 0);
     head.add(gape);
 
     // 下顎（ピボットで開閉）
     const jaw = new THREE.Group();
     jaw.name = 'morayJaw';
-    jaw.position.set(0.25 * s, -0.18 * s, 0);
-    const jawGeo = new THREE.SphereGeometry(0.7 * s, 14, 10);
-    jawGeo.scale(1.9, 0.4, 0.7);
+    jaw.position.set(0.3 * s, -0.22 * s, 0);
+    const jawGeo = new THREE.SphereGeometry(0.95 * s, 14, 10);
+    jawGeo.scale(1.8, 0.45, 0.9);
     const jawMesh = new THREE.Mesh(jawGeo, bellyMat);
-    jawMesh.position.set(0.8 * s, -0.05 * s, 0);
+    jawMesh.position.set(0.85 * s, -0.05 * s, 0);
     jawMesh.castShadow = true;
     jaw.add(jawMesh);
     head.add(jaw);
 
     // 目（頭部側面の上寄り）
-    const eyeGeo = new THREE.SphereGeometry(0.14 * s, 10, 10);
+    const eyeGeo = new THREE.SphereGeometry(0.18 * s, 10, 10);
     for (const sign of [1, -1]) {
       const eye = new THREE.Mesh(eyeGeo, eyeMat);
-      eye.position.set(0.35 * s, 0.42 * s, sign * 0.42 * s);
+      eye.position.set(0.45 * s, 0.55 * s, sign * 0.6 * s);
       head.add(eye);
     }
 
