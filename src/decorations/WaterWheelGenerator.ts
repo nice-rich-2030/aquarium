@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WaterWheelParams, DEFAULT_WATERWHEEL_PARAMS } from '../types/decorations';
+import { woodTextures } from '../utils/textures';
 
 /**
  * 水車のプロシージャルジェネレーター
@@ -30,11 +31,15 @@ export class WaterWheelGenerator {
     const { radius, width, paddleCount } = config;
     const halfWidth = width / 2;
 
+    const { map: woodMap, bump: woodBump } = woodTextures();
     const woodMaterial = new THREE.MeshStandardMaterial({
       color: config.woodColor,
       roughness: 0.75,
       metalness: 0.0,
       envMapIntensity: 0.5,
+      map: woodMap,
+      bumpMap: woodBump,
+      bumpScale: 0.15,
     });
     const hubMaterial = new THREE.MeshStandardMaterial({
       color: config.hubColor,
@@ -108,11 +113,15 @@ export class WaterWheelGenerator {
     const legLength = radius * 1.35;
     const halfWidth = width / 2 + 1;
 
+    const { map: frameWoodMap, bump: frameWoodBump } = woodTextures();
     const frameMaterial = new THREE.MeshStandardMaterial({
       color: config.frameColor,
       roughness: 0.8,
       metalness: 0.0,
       envMapIntensity: 0.4,
+      map: frameWoodMap,
+      bumpMap: frameWoodBump,
+      bumpScale: 0.15,
     });
 
     const legGeometry = new THREE.BoxGeometry(radius * 0.12, legLength, radius * 0.12);

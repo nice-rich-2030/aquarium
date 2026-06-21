@@ -24,6 +24,8 @@ import { RayGenerator } from './RayGenerator';
 import { MorayGenerator } from './MorayGenerator';
 import { StarfishGenerator } from './StarfishGenerator';
 import { AnemoneGenerator } from './AnemoneGenerator';
+import { RuinsGenerator } from './RuinsGenerator';
+import { LighthouseGenerator } from './LighthouseGenerator';
 import { CoralGenerator } from './CoralGenerator';
 
 // デフォルトの装飾定義
@@ -101,6 +103,23 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
     generatorType: 'waterwheel',
     params: { ...DEFAULT_WATERWHEEL_PARAMS },
     animation: { type: 'rotate', speed: 0.4 },
+  },
+  {
+    id: 'greek-ruins',
+    name: 'ギリシャ神殿の遺跡',
+    description: '崩れた石柱が静かに佇む古代の遺跡',
+    category: 'other',
+    generatorType: 'ruins',
+    params: { size: 1.0 },
+  },
+  {
+    id: 'lighthouse',
+    name: '灯台',
+    description: '先端の光がゆっくり回る、海辺の灯台',
+    category: 'other',
+    generatorType: 'lighthouse',
+    params: { size: 1.0 },
+    animation: { type: 'lighthouse', speed: 0.6 },
   },
   {
     id: 'sea-turtle',
@@ -297,6 +316,12 @@ export class DecorationManager {
       case 'anemone':
         mesh = AnemoneGenerator.generate(definition.params as CreatureModelParams);
         break;
+      case 'ruins':
+        mesh = RuinsGenerator.generate(definition.params as CreatureModelParams);
+        break;
+      case 'lighthouse':
+        mesh = LighthouseGenerator.generate(definition.params as CreatureModelParams);
+        break;
       case 'coral':
         mesh = CoralGenerator.generate(definition.params as CoralParams);
         break;
@@ -452,6 +477,8 @@ export class DecorationManager {
         MorayGenerator.updateSwim(instance.mesh, elapsed, retract);
       } else if (type === 'anemone') {
         AnemoneGenerator.updateSway(instance.mesh, elapsed);
+      } else if (type === 'lighthouse') {
+        LighthouseGenerator.updateSpin(instance.mesh, elapsed, instance.animation!.speed ?? 0.6);
       }
     }
   }
@@ -657,6 +684,22 @@ export class DecorationManager {
       position: { x: 66, y: floorY + 22, z: -32 },
     });
 
+    // --- ギリシャ神殿の遺跡（左奥の点景） ---
+    this.place({
+      definitionId: 'greek-ruins',
+      position: { x: -78, y: floorY, z: -28 },
+      rotation: { x: 0, y: 0.7, z: 0 },
+      scale: 1.2,
+    });
+
+    // --- 灯台（神殿の奥・正面から見て左へ寄せて草に隠れすぎないように） ---
+    this.place({
+      definitionId: 'lighthouse',
+      position: { x: -92, y: floorY, z: -40 },
+      rotation: { x: 0, y: 0.4, z: 0 },
+      scale: 1.0,
+    });
+
     // --- 草の群植（島状にまとめ、中央手前に砂地の余白を残す） ---
     this.placeGrassCluster(-58, -30, 'tall-grass', 26, 36, floorY); // 主石組の背後（中景の主役）
     this.placeGrassCluster(-42, -26, 'tall-grass', 14, 24, floorY);
@@ -860,6 +903,24 @@ export class DecorationManager {
    */
   public getGroup(): THREE.Group {
     return this.group;
+  }
+
+  /**
+   * 装飾（岩・珊瑚・イソギンチャク・木部など）の起伏(bumpScale)を
+   * ライブ調整する。各マテリアルの基準値×multiplier。
+   */
+  public setReliefMultiplier(multiplier: number): void {
+    this.group.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const mat of mats) {
+        const sm = mat as THREE.MeshStandardMaterial;
+        if (sm && sm.bumpMap) {
+          if (sm.userData.baseBump === undefined) sm.userData.baseBump = sm.bumpScale;
+          sm.bumpScale = sm.userData.baseBump * multiplier;
+        }
+      }
+    });
   }
 
   /**

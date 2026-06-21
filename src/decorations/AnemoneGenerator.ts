@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CreatureModelParams, DEFAULT_TURTLE_PARAMS } from '../types/decorations';
+import { anemoneTextures } from '../utils/textures';
 
 /**
  * イソギンチャクのプロシージャルジェネレーター
@@ -24,11 +25,15 @@ export class AnemoneGenerator {
     group.userData.size = s;
 
     // --- 柱（体）と口盤 ---
+    // 薄い触手では bump が見えにくいので、色マップ（縞）で視認できる模様を付ける
+    const { map: anemoneMap, bump: anemoneBump } = anemoneTextures();
     const columnMat = new THREE.MeshStandardMaterial({
       color: '#b06a72', roughness: 0.7, metalness: 0.0, envMapIntensity: 0.35,
+      map: anemoneMap, bumpMap: anemoneBump, bumpScale: 0.35,
     });
     const discMat = new THREE.MeshStandardMaterial({
       color: '#7a464f', roughness: 0.7, metalness: 0.0,
+      map: anemoneMap, bumpMap: anemoneBump, bumpScale: 0.22,
     });
 
     // 台は低く・広く。面積をさらに1.5倍（累積で水平×1.5＝面積約2.25倍）にして隠れやすく
@@ -62,6 +67,7 @@ export class AnemoneGenerator {
 
     const positions: number[] = [];
     const colors: number[] = [];
+    const uvs: number[] = [];
     const indices: number[] = [];
     const weights: number[] = []; // 揺れの重み（頂点ごと）
     const phases: number[] = [];  // 触手ごとの位相（頂点ごとに複製）
@@ -98,6 +104,7 @@ export class AnemoneGenerator {
           positions.push(cx + Math.cos(th) * r, cy, cz + Math.sin(th) * r);
           const c = baseColor.clone().lerp(tipColor, u);
           colors.push(c.r, c.g, c.b);
+          uvs.push(j / this.NRAD, u * 3.0); // 凹凸テクスチャ用（縦に細かく）
           weights.push(w);
           phases.push(phase);
         }
@@ -119,12 +126,15 @@ export class AnemoneGenerator {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geo.setIndex(indices);
     geo.computeVertexNormals();
 
     const tentacleMat = new THREE.MeshStandardMaterial({
       vertexColors: true, roughness: 0.55, metalness: 0.0,
       envMapIntensity: 0.5, side: THREE.DoubleSide,
+      // 縞の色マップ（頂点カラーに乗算）＋凹凸で触手の模様を視認可能に
+      map: anemoneMap, bumpMap: anemoneBump, bumpScale: 0.16,
     });
     const tentacles = new THREE.Mesh(geo, tentacleMat);
     tentacles.name = 'anemone-tentacles';

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TankConfig, DEFAULT_TANK_CONFIG } from '../types/config';
+import { sandTextures } from '../utils/textures';
 
 /**
  * 水槽本体クラス
@@ -10,6 +11,8 @@ export class Tank {
   private config: TankConfig;
   private bounds: THREE.Box3;
   private bgMaterial?: THREE.ShaderMaterial; // 背景の海中ライトのアニメ用
+  private floorMaterial?: THREE.MeshStandardMaterial; // 砂地（起伏のライブ調整用）
+  private floorBaseBump = 0.9;
 
   constructor(config: TankConfig = DEFAULT_TANK_CONFIG) {
     this.config = config;
@@ -61,13 +64,22 @@ export class Tank {
     }
     geometry.computeVertexNormals();
 
-    // マテリアル
+    // マテリアル（砂粒のノイズテクスチャをタイル状に貼る）
+    const { map: sandMap, bump: sandBump } = sandTextures();
+    // 繰り返しは控えめに（大きな模様が遠距離でも見えるように）。比は床のアスペクト
+    for (const tex of [sandMap, sandBump]) {
+      tex.repeat.set(width / 66, depth / 66);
+    }
     const material = new THREE.MeshStandardMaterial({
       color: sandColor,
-      roughness: 0.9,
+      roughness: 0.95,
       metalness: 0.0,
       side: THREE.DoubleSide,
+      map: sandMap,
+      bumpMap: sandBump,
+      bumpScale: 0.9,
     });
+    this.floorMaterial = material;
 
     const floor = new THREE.Mesh(geometry, material);
     floor.rotation.x = -Math.PI / 2;
@@ -188,6 +200,15 @@ export class Tank {
     background.name = 'background';
 
     this.group.add(background);
+  }
+
+  /**
+   * 砂地の起伏（bumpScale）をライブ調整（基準値×multiplier）
+   */
+  public setSandRelief(multiplier: number): void {
+    if (this.floorMaterial) {
+      this.floorMaterial.bumpScale = this.floorBaseBump * multiplier;
+    }
   }
 
   /**

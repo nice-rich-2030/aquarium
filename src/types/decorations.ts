@@ -72,7 +72,7 @@ export type GeneratorParams =
 
 // アニメーションパラメータ（揺れ・回転・遊泳など）
 export interface DecorationAnimationParams {
-  type: 'sway' | 'rotate' | 'turtle' | 'ray' | 'moray' | 'anemone' | 'none';
+  type: 'sway' | 'rotate' | 'turtle' | 'ray' | 'moray' | 'anemone' | 'lighthouse' | 'none';
   speed?: number;
   amount?: number;
 }

@@ -107,6 +107,7 @@ class DigitalAquarium {
       creatureManager: this.creatureManager,
       decorationManager: this.decorationManager,
       lighting: this.lighting,
+      tank: this.tank,
     });
 
     // 生き物へのマウス操作（ホバー情報・クリックで反転）

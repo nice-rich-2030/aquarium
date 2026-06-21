@@ -3,12 +3,14 @@ import { AquariumCamera } from '../core/Camera';
 import { CreatureManager } from '../creatures/CreatureManager';
 import { DecorationManager } from '../decorations/DecorationManager';
 import { Lighting } from '../environment/Lighting';
+import { Tank } from '../environment/Tank';
 
 interface SettingsPanelOptions {
   camera: AquariumCamera;
   creatureManager: CreatureManager;
   decorationManager: DecorationManager;
   lighting: Lighting;
+  tank: Tank;
   onFullscreen?: () => void;
   onReset?: () => void;
 }
@@ -25,6 +27,8 @@ export class SettingsPanel {
     causticsEnabled: boolean;
     ambientIntensity: number;
     sunIntensity: number;
+    decorRelief: number;
+    sandRelief: number;
   };
   // カメラの現在値（ライブ表示用）
   private cameraInfo = {
@@ -41,6 +45,8 @@ export class SettingsPanel {
       causticsEnabled: true,
       ambientIntensity: 0.4,
       sunIntensity: 1.0,
+      decorRelief: 10.0,
+      sandRelief: 5.0,
     };
 
     this.gui = new GUI({ title: 'Settings' });
@@ -54,6 +60,7 @@ export class SettingsPanel {
     this.setupActionsFolder();
     this.setupCameraFolder();
     this.setupLightingFolder();
+    this.setupTextureFolder();
     this.setupCreaturesFolder();
     this.setupDecorationsFolder();
 
@@ -161,6 +168,29 @@ export class SettingsPanel {
       .onChange((value: boolean) => {
         this.options.lighting.setCausticsEnabled(value);
       });
+  }
+
+  /**
+   * テクスチャ（起伏）フォルダ
+   */
+  private setupTextureFolder(): void {
+    const folder = this.gui.addFolder('Texture');
+
+    folder.add(this.settings, 'decorRelief', 0, 20, 0.5)
+      .name('Relief: 岩/珊瑚/イソギン')
+      .onChange((v: number) => {
+        this.options.decorationManager.setReliefMultiplier(v);
+      });
+
+    folder.add(this.settings, 'sandRelief', 0, 20, 0.5)
+      .name('Relief: 砂地')
+      .onChange((v: number) => {
+        this.options.tank.setSandRelief(v);
+      });
+
+    // デフォルト値を起動時に適用
+    this.options.decorationManager.setReliefMultiplier(this.settings.decorRelief);
+    this.options.tank.setSandRelief(this.settings.sandRelief);
   }
 
   /**

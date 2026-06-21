@@ -6,5 +6,7 @@ export { RayGenerator } from './RayGenerator';
 export { MorayGenerator } from './MorayGenerator';
 export { StarfishGenerator } from './StarfishGenerator';
 export { AnemoneGenerator } from './AnemoneGenerator';
+export { RuinsGenerator } from './RuinsGenerator';
+export { LighthouseGenerator } from './LighthouseGenerator';
 export { CoralGenerator } from './CoralGenerator';
 export { DecorationManager } from './DecorationManager';

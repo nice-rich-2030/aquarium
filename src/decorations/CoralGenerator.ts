@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CoralParams, DEFAULT_CORAL_PARAMS } from '../types/decorations';
+import { coralTextures } from '../utils/textures';
 
 /**
  * 珊瑚のプロシージャルジェネレーター
@@ -42,6 +43,7 @@ export class CoralGenerator {
    */
   private static makeMaterial(color: string): THREE.MeshStandardMaterial {
     const baseColor = new THREE.Color(color);
+    const { map, bump } = coralTextures();
     return new THREE.MeshStandardMaterial({
       color,
       roughness: 0.7,
@@ -49,6 +51,9 @@ export class CoralGenerator {
       emissive: baseColor.clone().multiplyScalar(0.16),
       envMapIntensity: 0.5,
       flatShading: false,
+      map,
+      bumpMap: bump,
+      bumpScale: 0.6,
     });
   }
 

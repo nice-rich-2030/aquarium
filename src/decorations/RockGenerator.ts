@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RockParams, DEFAULT_ROCK_PARAMS } from '../types/decorations';
 import { perlin3D } from '../utils/noise';
+import { stoneTextures } from '../utils/textures';
 
 /**
  * 岩のプロシージャルジェネレーター
@@ -26,12 +27,17 @@ export class RockGenerator {
     // 法線を再計算
     geometry.computeVertexNormals();
 
-    // マテリアル
+    // マテリアル（ノイズテクスチャで色の濃淡・凹凸・粗さムラを付与）
+    const { map, bump, rough } = stoneTextures();
     const material = new THREE.MeshStandardMaterial({
       color: config.color,
       roughness: config.roughness,
       metalness: 0.0,
       flatShading: true,
+      map,
+      bumpMap: bump,
+      bumpScale: config.baseRadius * 0.12,
+      roughnessMap: rough,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
