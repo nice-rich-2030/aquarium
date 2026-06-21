@@ -92,6 +92,8 @@ class DigitalAquarium {
     this.scene.add(this.decorationManager.getGroup());
     // 亀・エイも餌を食べられるよう餌やりシステムを接続
     this.decorationManager.setFeedingManager(this.feedingManager);
+    // クラゲが噴出口で持ち上げられるよう位置を登録
+    this.decorationManager.setVentPositions(ventDefs.map((v) => ({ x: v.x, z: v.z })));
 
     // デフォルトの生き物を配置
     this.spawnDefaultCreatures();

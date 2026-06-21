@@ -176,6 +176,6 @@ export class AnemoneGenerator {
       arr[i * 3 + 2] = orig[i * 3 + 2] + sz;
     }
     pos.needsUpdate = true;
-    mesh.geometry.computeVertexNormals();
+    // 法線の毎フレーム再計算は重いので省略（柔らかい触手では陰影差は軽微）
   }
 }

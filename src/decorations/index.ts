@@ -8,5 +8,8 @@ export { StarfishGenerator } from './StarfishGenerator';
 export { AnemoneGenerator } from './AnemoneGenerator';
 export { RuinsGenerator } from './RuinsGenerator';
 export { LighthouseGenerator } from './LighthouseGenerator';
+export { JellyfishGenerator } from './JellyfishGenerator';
+export { ShrimpGenerator } from './ShrimpGenerator';
+export { SnailGenerator } from './SnailGenerator';
 export { CoralGenerator } from './CoralGenerator';
 export { DecorationManager } from './DecorationManager';

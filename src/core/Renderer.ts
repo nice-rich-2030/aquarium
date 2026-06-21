@@ -27,8 +27,9 @@ export class AquariumRenderer {
    * レンダラーの初期設定
    */
   private setupRenderer(): void {
-    // ピクセル比設定（モバイル対応で2までに制限）
-    const pixelRatio = Math.min(window.devicePixelRatio, 2);
+    // ピクセル比設定（負荷削減のため1.5までに制限。高解像度ディスプレイの
+    // 描画フラグメント数を抑える。視覚的な劣化は軽微）
+    const pixelRatio = Math.min(window.devicePixelRatio, 1.5);
     this.renderer.setPixelRatio(pixelRatio);
 
     // サイズ設定

@@ -111,7 +111,7 @@ export const DEFAULT_PARTICLE_CONFIG: ParticleConfig = {
   bubbleCount: 150,
   bubbleSpeed: 5,
   bubbleSize: { min: 0.1, max: 0.5 },
-  dustCount: 100,
+  dustCount: 60,
   dustSpeed: 0.2,
 };
 

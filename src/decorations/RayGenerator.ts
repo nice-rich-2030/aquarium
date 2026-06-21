@@ -150,7 +150,7 @@ export class RayGenerator {
   /**
    * 遊泳アニメーション（翼の波打ち＋尾の揺れ）を更新
    */
-  public static updateSwim(group: THREE.Group, time: number, speed: number): void {
+  public static updateSwim(group: THREE.Group, time: number, speed: number, recomputeNormals = true): void {
     const flap = time * speed * 2.2;
 
     group.traverse((child) => {
@@ -170,7 +170,7 @@ export class RayGenerator {
           arr[v * 3 + 1] = orig[v * 3 + 1] + wave;
         }
         pos.needsUpdate = true;
-        child.geometry.computeVertexNormals();
+        if (recomputeNormals) child.geometry.computeVertexNormals(); // 法線は間引き可
       } else if (child.name === 'ray-tail-seg') {
         const s = child.userData.segIndex || 0;
         // 尾は先端ほど大きく、位相遅延でしなる

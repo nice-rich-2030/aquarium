@@ -55,7 +55,7 @@ export class Lighting {
 
     // シャドウマップ設定
     light.castShadow = true;
-    light.shadow.mapSize.set(2048, 2048);
+    light.shadow.mapSize.set(1024, 1024); // 負荷削減（2048→1024）
 
     // 影を投影する正射影カメラを水槽全体に合わせる
     const cam = light.shadow.camera;

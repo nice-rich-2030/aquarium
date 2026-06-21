@@ -72,7 +72,7 @@ export type GeneratorParams =
 
 // アニメーションパラメータ（揺れ・回転・遊泳など）
 export interface DecorationAnimationParams {
-  type: 'sway' | 'rotate' | 'turtle' | 'ray' | 'moray' | 'anemone' | 'lighthouse' | 'starfish' | 'none';
+  type: 'sway' | 'rotate' | 'turtle' | 'ray' | 'moray' | 'anemone' | 'lighthouse' | 'starfish' | 'jellyfish' | 'shrimp' | 'snail' | 'none';
   speed?: number;
   amount?: number;
 }
@@ -103,6 +103,7 @@ export interface DecorationInstance {
   reactionTimer?: number;      // クリック反応（驚いて逃げる）の残り時間(秒)
   reactionDir?: THREE.Vector3; // 反応時の逃避方向
   satietyTimer?: number;       // 餌を食べた後の満腹の残り時間(秒)。>0 の間は餌に反応しない
+  groundY?: number;            // 着地基準の地面高さ（海底を這う生物用）
 }
 
 // 装飾配置設定

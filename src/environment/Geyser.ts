@@ -28,8 +28,8 @@ export class Geyser {
   private dummy = new THREE.Object3D();
 
   private readonly maxHeight: number;
-  private readonly waterCount = 70;
-  private readonly sandCount = 26;
+  private readonly waterCount = 48;
+  private readonly sandCount = 18;
   private elapsed = 0;
 
   constructor(position: { x: number; y: number; z: number }, maxHeight = 18) {

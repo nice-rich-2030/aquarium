@@ -26,6 +26,9 @@ import { StarfishGenerator } from './StarfishGenerator';
 import { AnemoneGenerator } from './AnemoneGenerator';
 import { RuinsGenerator } from './RuinsGenerator';
 import { LighthouseGenerator } from './LighthouseGenerator';
+import { JellyfishGenerator } from './JellyfishGenerator';
+import { ShrimpGenerator } from './ShrimpGenerator';
+import { SnailGenerator } from './SnailGenerator';
 import { CoralGenerator } from './CoralGenerator';
 
 // デフォルトの装飾定義
@@ -170,6 +173,27 @@ const DEFAULT_DECORATIONS: DecorationDefinition[] = [
     animation: { type: 'starfish', speed: 1.0 },
   },
   {
+    id: 'jellyfish', name: 'クラゲ',
+    description: '透明な傘を脈打たせ、ふわふわと中層を漂う',
+    category: 'other', generatorType: 'jellyfish',
+    params: { size: 1.0, color: '#bfd8f0' },
+    animation: { type: 'jellyfish', speed: 1.0 },
+  },
+  {
+    id: 'shrimp', name: 'エビ',
+    description: '長い触角を揺らし、海底をちょこちょこ歩く',
+    category: 'other', generatorType: 'shrimp',
+    params: { size: 1.4, color: '#e6967f' },
+    animation: { type: 'shrimp', speed: 1.0 },
+  },
+  {
+    id: 'snail', name: '巻貝',
+    description: '螺旋の殻を背負い、砂の上をごくゆっくり這う',
+    category: 'shell', generatorType: 'snail',
+    params: { size: 1.3, color: '#b98a5a' },
+    animation: { type: 'snail', speed: 1.0 },
+  },
+  {
     id: 'anemone-pink', name: 'イソギンチャク（桃）',
     description: '触手をゆらゆら揺らす。カクレクマノミの住処',
     category: 'other', generatorType: 'anemone',
@@ -238,6 +262,10 @@ export class DecorationManager {
   private tankBounds: THREE.Box3;
   private nextInstanceId: number = 0;
   private feedingManager: FeedingManager | null = null;
+  private ventPositions: { x: number; z: number }[] = []; // 噴出口（クラゲを持ち上げる）
+  private readonly ESCAPE_DUR = 0.8; // クリック逃避のダート時間(秒)
+  private animatedInstances: DecorationInstance[] = []; // 毎フレーム更新が要る個体のみ
+  private frame = 0; // 間引き用フレームカウンタ
 
   constructor(tankBounds: THREE.Box3) {
     this.tankBounds = tankBounds;
@@ -277,6 +305,10 @@ export class DecorationManager {
     const instance = this.createInstance(definition, config);
     this.instances.push(instance);
     this.group.add(instance.mesh);
+    // アニメするものだけ毎フレーム走査対象に（静的な岩・珊瑚等は除外）
+    if (instance.animation && instance.animation.type !== 'none') {
+      this.animatedInstances.push(instance);
+    }
 
     return instance;
   }
@@ -318,6 +350,15 @@ export class DecorationManager {
         break;
       case 'anemone':
         mesh = AnemoneGenerator.generate(definition.params as CreatureModelParams);
+        break;
+      case 'jellyfish':
+        mesh = JellyfishGenerator.generate(definition.params as CreatureModelParams);
+        break;
+      case 'shrimp':
+        mesh = ShrimpGenerator.generate(definition.params as CreatureModelParams);
+        break;
+      case 'snail':
+        mesh = SnailGenerator.generate(definition.params as CreatureModelParams);
         break;
       case 'ruins':
         mesh = RuinsGenerator.generate(definition.params as CreatureModelParams);
@@ -429,6 +470,8 @@ export class DecorationManager {
     });
 
     this.instances.splice(index, 1);
+    const ai = this.animatedInstances.indexOf(instance);
+    if (ai !== -1) this.animatedInstances.splice(ai, 1);
   }
 
   /**
@@ -441,11 +484,21 @@ export class DecorationManager {
     this.feedingManager = feeding;
   }
 
+  /**
+   * 噴出口の位置を設定（クラゲが近づくと持ち上げられる）
+   */
+  public setVentPositions(positions: { x: number; z: number }[]): void {
+    this.ventPositions = positions;
+  }
+
   public update(delta: number, elapsed: number): void {
-    for (const instance of this.instances) {
+    this.frame++;
+    const everyOther = this.frame % 2 === 0; // 重い処理を1フレームおきに間引く
+    for (const instance of this.animatedInstances) {
       const type = instance.animation?.type;
       if (type === 'sway') {
-        PlantGenerator.updateSway(instance.mesh, elapsed);
+        // 草の揺れは数が多いので1フレームおきに更新（実時間ベースなので破綻しない）
+        if (everyOther) PlantGenerator.updateSway(instance.mesh, elapsed);
       } else if (type === 'rotate') {
         // 車輪部分（name='wheel'）のみを回転させる
         const wheel = instance.mesh.getObjectByName('wheel');
@@ -457,7 +510,8 @@ export class DecorationManager {
         TurtleGenerator.updateSwim(instance.mesh, elapsed);
       } else if (type === 'ray') {
         this.animateRoam(instance, delta, elapsed);
-        RayGenerator.updateSwim(instance.mesh, elapsed, instance.animation!.speed ?? 1.0);
+        // 翼の頂点変形は毎フレーム、法線の再計算だけ1フレームおきに間引く
+        RayGenerator.updateSwim(instance.mesh, elapsed, instance.animation!.speed ?? 1.0, everyOther);
       } else if (type === 'moray') {
         // クリック反応中は巣穴へ引っ込む。
         // 潜行(0→1を約0.5秒で見せる) → 待機 → 復帰(最後の1秒で1→0) の3段階。
@@ -484,8 +538,82 @@ export class DecorationManager {
         LighthouseGenerator.updateSpin(instance.mesh, elapsed, instance.animation!.speed ?? 0.6);
       } else if (type === 'starfish') {
         this.animateStarfish(instance, elapsed);
+      } else if (type === 'jellyfish') {
+        this.animateJellyfish(instance, delta, elapsed);
+      } else if (type === 'shrimp') {
+        this.animateCrawler(instance, delta, elapsed, 120, 14, 9);
+        ShrimpGenerator.updateSwim(instance.mesh, elapsed);
+      } else if (type === 'snail') {
+        this.animateCrawler(instance, delta, elapsed, 600, 8, 5);
+        SnailGenerator.updateSwim(instance.mesh, elapsed);
       }
     }
+  }
+
+  /**
+   * クラゲ：中層を漂う（ゆっくりした水平ループ＋上下のbob）＋傘の脈動。
+   * 周期パスなのでドリフトせず元の位置周辺に留まる。
+   */
+  private animateJellyfish(instance: DecorationInstance, delta: number, time: number): void {
+    // クリック逃避でベース位置をずらす（逃げた位置から漂い続ける）
+    this.applyEscape(instance, delta);
+    const base = instance.position;
+    const ph = base.x * 0.2 + base.z * 0.17;
+    const a = time * ((Math.PI * 2) / 90) + ph; // 90秒周期の水平ループ
+    let px = base.x + Math.sin(a) * 12;
+    let pz = base.z + Math.sin(a * 2) * 8;
+    let py = base.y + Math.sin(time * 0.5 + ph) * 4;
+
+    // 噴出口に近いほど湧水で上方向へ持ち上げられる
+    let lift = 0;
+    const radius = 22;
+    for (const v of this.ventPositions) {
+      const d = Math.hypot(px - v.x, pz - v.z);
+      if (d < radius) lift = Math.max(lift, (1 - d / radius) * 20);
+    }
+    py += lift;
+
+    instance.mesh.position.set(px, py, pz);
+    JellyfishGenerator.updateSwim(instance.mesh, time);
+  }
+
+  /**
+   * クリック逃避：ESCAPE_DUR の間に reactionDir（移動量を含むベクトル）ぶん
+   * ベース位置(instance.position)自体を恒久的にずらす。
+   * 元の場所には戻らず、逃げた位置からそのまま漂い／移動を続ける。
+   */
+  private applyEscape(instance: DecorationInstance, delta: number): void {
+    if (instance.reactionTimer && instance.reactionTimer > 0 && instance.reactionDir) {
+      instance.position.addScaledVector(instance.reactionDir, delta / this.ESCAPE_DUR);
+      instance.reactionTimer -= delta;
+    }
+  }
+
+  /**
+   * 海底を這う生物（エビ・巻貝）の移動。閉じた8の字パスで進行方向を向く。
+   * period: 周回秒数（大きいほど遅い）、rx/rz: 徘徊範囲。
+   */
+  private animateCrawler(
+    instance: DecorationInstance, delta: number, time: number,
+    period: number, rx: number, rz: number
+  ): void {
+    // クリック逃避でベース位置をずらす（逃げた位置から移動を続ける）
+    this.applyEscape(instance, delta);
+    const base = instance.position;
+    // 逃避で浮いた分は地面高さへゆっくり着地（海底を這う生物）
+    if (instance.groundY === undefined) instance.groundY = base.y;
+    base.y += (instance.groundY - base.y) * Math.min(1, delta * 2.5);
+    const ph = base.x * 0.23 + base.z * 0.19;
+    const w = (Math.PI * 2) / period;
+    const a = time * w + ph;
+    // 進行方向を向く（モデル前方は +x）
+    const dx = Math.cos(a) * rx;
+    const dz = Math.cos(a * 2) * 2 * rz;
+    instance.mesh.rotation.y = Math.atan2(-dz, dx);
+
+    instance.mesh.position.x = base.x + Math.sin(a) * rx;
+    instance.mesh.position.z = base.z + Math.sin(a * 2) * rz;
+    instance.mesh.position.y = base.y;
   }
 
   /**
@@ -643,8 +771,8 @@ export class DecorationManager {
    */
   public canReact(instance: DecorationInstance): boolean {
     if (instance.roamDir) return true;
-    const def = this.definitions.get(instance.definitionId);
-    return def?.generatorType === 'moray';
+    const gt = this.definitions.get(instance.definitionId)?.generatorType;
+    return gt === 'moray' || gt === 'shrimp' || gt === 'jellyfish';
   }
 
   /**
@@ -663,10 +791,24 @@ export class DecorationManager {
       return;
     }
 
-    const def = this.definitions.get(instance.definitionId);
-    if (def?.generatorType === 'moray') {
+    const gt = this.definitions.get(instance.definitionId)?.generatorType;
+    if (gt === 'moray') {
       // 引っ込んで隠れ、しばらくして再び顔を出す
       instance.reactionTimer = 2.5;
+    } else if (gt === 'shrimp') {
+      // 後ろへ少し下がって逃げ、その位置から移動を続ける（移動量込みのベクトル）
+      const fwd = new THREE.Vector3(
+        Math.cos(instance.mesh.rotation.y), 0, -Math.sin(instance.mesh.rotation.y)
+      );
+      instance.reactionDir = fwd.multiplyScalar(-1)
+        .add(new THREE.Vector3(0, 0.15, 0)).normalize().multiplyScalar(3.5); // 小さめに後退
+      instance.reactionTimer = this.ESCAPE_DUR;
+    } else if (gt === 'jellyfish') {
+      // 斜め上へ少しジェット噴射で逃げ、その位置から漂う（移動量込みのベクトル）
+      instance.reactionDir = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.8, 1.0, (Math.random() - 0.5) * 0.8
+      ).normalize().multiplyScalar(5.2); // 0.2倍
+      instance.reactionTimer = this.ESCAPE_DUR;
     }
   }
 
@@ -816,6 +958,36 @@ export class DecorationManager {
       position: { x: 8, y: floorY, z: 18 },
       scale: 0.9,
     });
+
+    // クラゲ（3・中層を漂う）。噴出口の近くに置き、湧水で持ち上げられる
+    const jellyPos = [
+      { x: 4, y: 11, z: 22 }, { x: -34, y: 9, z: 4 }, { x: 72, y: 13, z: -28 },
+    ];
+    for (const p of jellyPos) {
+      // 0.7倍に縮小
+      this.place({ definitionId: 'jellyfish', position: p, scale: (0.9 + Math.random() * 0.4) * 0.7 });
+    }
+
+    // エビ（1・海底を歩く）
+    this.place({
+      definitionId: 'shrimp',
+      position: { x: -10, y: floorY, z: 30 },
+      rotation: { x: 0, y: Math.random() * Math.PI * 2, z: 0 },
+      scale: 1.0,
+    });
+
+    // 巻貝（5・砂の上をごくゆっくり）
+    const snailPos = [
+      { x: -62, z: 20 }, { x: 30, z: 28 }, { x: -18, z: -8 }, { x: 60, z: 10 }, { x: 6, z: 34 },
+    ];
+    for (const p of snailPos) {
+      this.place({
+        definitionId: 'snail',
+        position: { x: p.x, y: floorY, z: p.z },
+        rotation: { x: 0, y: Math.random() * Math.PI * 2, z: 0 },
+        scale: (0.9 + Math.random() * 0.3) * 0.8, // 0.8倍に縮小
+      });
+    }
   }
 
   /**

@@ -35,8 +35,8 @@ export class MorayGenerator {
 
     // グロテスクな豹紋テクスチャ（網目状の暗い斑＋疣状の凹凸）
     const { map: morayMap, bump: morayBump } = morayTextures();
-    morayMap.repeat.set(3, 7);  // 周方向3・長手方向7で斑を散らす
-    morayBump.repeat.set(3, 7);
+    morayMap.repeat.set(2.5, 4.5);  // 表面上で丸い斑になる比率
+    morayBump.repeat.set(2.5, 4.5);
     const skinMat = new THREE.MeshStandardMaterial({
       color: '#8a9a54', roughness: 0.55, metalness: 0.0, envMapIntensity: 0.4,
       map: morayMap, bumpMap: morayBump, bumpScale: 0.35,
@@ -103,12 +103,19 @@ export class MorayGenerator {
     jaw.add(jawMesh);
     head.add(jaw);
 
-    // 目（頭部側面の上寄り）
-    const eyeGeo = new THREE.SphereGeometry(0.18 * s, 10, 10);
+    // 目（マダラ模様に埋もれないよう、明るい眼球＋黒目を突出させる）
+    const eyeBallMat = new THREE.MeshStandardMaterial({
+      color: '#e9d488', roughness: 0.35, metalness: 0.0,
+      emissive: '#6a5512', emissiveIntensity: 0.35,
+    });
     for (const sign of [1, -1]) {
-      const eye = new THREE.Mesh(eyeGeo, eyeMat);
-      eye.position.set(0.45 * s, 0.55 * s, sign * 0.6 * s);
-      head.add(eye);
+      const ex = 0.7 * s, ey = 0.62 * s, ez = sign * 0.8 * s;
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.26 * s, 12, 12), eyeBallMat);
+      ball.position.set(ex, ey, ez);
+      head.add(ball);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.14 * s, 8, 8), eyeMat);
+      pupil.position.set(ex + 0.06 * s, ey + 0.04 * s, ez + sign * 0.08 * s); // 外側へ突出
+      head.add(pupil);
     }
 
     return group;

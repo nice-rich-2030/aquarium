@@ -185,22 +185,22 @@ export function whaleTextures(): { map: THREE.CanvasTexture; bump: THREE.CanvasT
   return { map: _whaleMap, bump: _whaleBump };
 }
 
-/** ウツボ用：網目状の暗い斑（グロテスクな豹紋）と疣（いぼ）状の凹凸 */
+/** ウツボ用：丸い暗斑のマダラ模様（豹紋）と、ゆるい凹凸 */
 export function morayTextures(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+  // 低周波 fbm を smoothstep で丸い斑にする（線状にならないように）
   const blotch = (x: number, y: number) => {
-    const v = turbulence(x * 5 + 1.3, y * 5 + 0.7, 4);
-    return Math.min(1, Math.max(0, (v - 0.3) / 0.22)); // 0..1 の斑
+    const n = fbm(x * 3.4 + 1.2, y * 3.4 + 0.4, 4) * 0.5 + 0.5; // 0..1 の大きな斑
+    const e = Math.min(1, Math.max(0, (n - 0.54) / 0.13));
+    return e * e * (3 - 2 * e); // smoothstep で縁を丸く
   };
   if (!_morayMap) {
-    // 明るい地肌に暗い大きな斑（0.3..0.9）。細かいムラも少し。
     _morayMap = grayTexture((x, y) => {
-      const fine = fbm(x * 14, y * 14, 3) * 0.1;
-      return 0.9 - blotch(x, y) * 0.6 - fine;
+      const fine = fbm(x * 9, y * 9, 3) * 0.06;
+      return 0.92 - blotch(x, y) * 0.62 - fine;
     });
   }
   if (!_morayBump) {
-    // 斑がやや盛り上がる（疣のような質感）
-    _morayBump = grayTexture((x, y) => 0.45 + blotch(x, y) * 0.45 + fbm(x * 20, y * 20, 3) * 0.1);
+    _morayBump = grayTexture((x, y) => 0.5 + blotch(x, y) * 0.4);
   }
   return { map: _morayMap, bump: _morayBump };
 }
