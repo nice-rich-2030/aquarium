@@ -378,6 +378,13 @@ export class CreatureManager {
   }
 
   /**
+   * 個体インスタンスの一覧を取得（魚視点カメラの巡回などに使用）
+   */
+  public getInstances(): CreatureInstance[] {
+    return this.instances;
+  }
+
+  /**
    * グループを取得
    */
   public getGroup(): THREE.Group {

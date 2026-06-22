@@ -1,6 +1,7 @@
 import { AquariumScene, AquariumRenderer, AquariumCamera, AnimationLoop, PostProcessing } from './core';
 import { Tank, Lighting, Particles, Geyser } from './environment';
 import { CreatureManager, FeedingManager } from './creatures';
+import { CreatureInstance } from './types/creatures';
 import { DecorationManager } from './decorations';
 import { SettingsPanel, CreatureInteraction } from './ui';
 import {
@@ -30,6 +31,10 @@ class DigitalAquarium {
   private decorationManager: DecorationManager;
   private settingsPanel: SettingsPanel;
   private creatureInteraction: CreatureInteraction;
+
+  // 魚視点カメラ: 現在追従中の個体インデックス（-1は非追従）
+  private followIndex: number = -1;
+  private followHud: HTMLElement | null = null;
 
   constructor(container: HTMLElement) {
     // コアシステム初期化
@@ -243,7 +248,9 @@ class DigitalAquarium {
 
   /**
    * キーボードショートカットを設定
-   * f: 正面プリセットを表示
+   * c: 魚視点に切替（再度押すと次の魚へ巡回）
+   * v: 魚視点中の表示スタイル切替（一人称 ⇄ 肩越し）
+   * f: 正面プリセットに戻る（魚視点を解除）
    */
   private setupKeyboard(): void {
     window.addEventListener('keydown', (e) => {
@@ -253,9 +260,97 @@ class DigitalAquarium {
         return;
       }
       if (e.key === 'f' || e.key === 'F') {
-        this.camera.setPreset('正面');
+        this.exitFishView();
+      } else if (e.key === 'c' || e.key === 'C') {
+        this.cycleFishView();
+      } else if (e.key === 'v' || e.key === 'V') {
+        this.toggleFishViewStyle();
       }
     });
+  }
+
+  /**
+   * 魚視点へ入る／次の魚へ巡回する。
+   *
+   * 追従中に押すと次の魚へ進む。fで正面に戻った直後の最初のcは、
+   * 直前に見ていた魚の視点に復帰する（巡回は進めない）。
+   */
+  private cycleFishView(): void {
+    const instances = this.creatureManager.getInstances();
+    if (instances.length === 0) return;
+
+    if (this.camera.isFollowing()) {
+      // 追従中: 次の魚へ
+      this.followIndex = (this.followIndex + 1) % instances.length;
+    } else if (this.followIndex < 0) {
+      // まだ一度も選んでいない: サメ（捕食者）の視点から始める。いなければ先頭。
+      const sharkIndex = instances.findIndex((i) => i.isPredator);
+      this.followIndex = sharkIndex >= 0 ? sharkIndex : 0;
+    }
+    // 上記以外（f解除後の復帰）は followIndex を保持して直前の魚に戻る
+
+    const instance = instances[this.followIndex];
+
+    this.camera.followCreature(instance.mesh, instance.size);
+    this.updateFishViewHud(instance);
+  }
+
+  /**
+   * 魚視点の表示スタイル（一人称 ⇄ 肩越し）を切り替える。
+   */
+  private toggleFishViewStyle(): void {
+    if (!this.camera.isFollowing()) return;
+    this.camera.toggleFollowMode();
+
+    const instances = this.creatureManager.getInstances();
+    const instance = instances[this.followIndex];
+    if (instance) this.updateFishViewHud(instance);
+  }
+
+  /**
+   * 魚視点を解除し、正面プリセットに戻す。
+   */
+  private exitFishView(): void {
+    this.camera.stopFollow();
+    // followIndex は保持する（次のcで直前の魚に復帰するため）
+    this.camera.setPreset('正面');
+    this.hideFishViewHud();
+  }
+
+  /**
+   * 魚視点HUD（現在の魚名・視点スタイル）を更新表示する。
+   */
+  private updateFishViewHud(instance: CreatureInstance): void {
+    if (!this.followHud) {
+      const hud = document.createElement('div');
+      hud.id = 'fish-view-hud';
+      document.body.appendChild(hud);
+      this.followHud = hud;
+    }
+
+    const name = this.creatureManager.getDisplayInfo(instance).name;
+    const style = this.camera.getFollowMode() === 'fpv' ? '一人称' : '肩越し';
+
+    // 同種の中での通し番号（例: ネオンテトラ 2/30）。同名でも個体を区別できるように。
+    const sameKind = this.creatureManager
+      .getInstances()
+      .filter((i) => i.definitionId === instance.definitionId);
+    const ordinal = sameKind.indexOf(instance) + 1;
+    const label = sameKind.length > 1 ? `${name} ${ordinal}/${sameKind.length}` : name;
+
+    this.followHud.innerHTML =
+      `<span class="fv-label">視点</span> ${label}` +
+      `<span class="fv-sub">[${style}]　c: 次の魚 / v: 視点切替 / f: 正面</span>`;
+    this.followHud.classList.add('visible');
+  }
+
+  /**
+   * 魚視点HUDを隠す。
+   */
+  private hideFishViewHud(): void {
+    if (this.followHud) {
+      this.followHud.classList.remove('visible');
+    }
   }
 
   /**
